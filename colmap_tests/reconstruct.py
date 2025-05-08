@@ -15,9 +15,11 @@ def open_image_file(path: str) -> list[str]:
 def add_imgs_to_database(database_path: str, image_path: str) -> None:
     """adds image paths with id and pose data from images.txt to the database"""
     imgs = open_image_file(image_path)
+
     db = COLMAPDatabase.connect(database_path)
-    #db.create_tables()
     for img in imgs:
+        if img[0] == '#':
+            continue
         db.add_image(img[-1], img[-2], img[0])
     db.commit()
     db.close()
@@ -33,6 +35,9 @@ def add_cams_to_database(database_path: str, cams_path: str) -> None:
     cams = open_camera_file(cams_path)
     db = COLMAPDatabase.connect(database_path)
     for cam in cams:
+        if cam[0] == '#':
+            continue
+        # For the params argument, i put cam[4:7] instead of cam[4:], otherwise extract_features() complains
         db.add_camera(cam[1], cam[2], cam[3], cam[4:7])
     db.commit()
     db.close()
@@ -62,9 +67,9 @@ def reconstruct_with_known_poses(database_path: str, image_dir: str, output_path
 
 
 if __name__ == "__main__":
-    database_path = "datasets/ccvpeer_downscaledPY/database.db"
-    image_dir = "datasets/ccvpeer_downscaledPY/images/"
-    output_path = "datasets/ccvpeer_downscaledPY/"
-    known_parameters_path = "/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/"
+    database_path = "datasets/peer_constant_f/database.db"
+    image_dir = "datasets/peer_constant_f/images/"
+    output_path = "datasets/peer_constant_f/"
+    known_parameters_path = "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/known_parameters/"
     reconstruct_with_known_poses(database_path, image_dir, output_path, known_parameters_path)
 

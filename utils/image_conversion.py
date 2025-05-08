@@ -79,9 +79,9 @@ def downscale_jpgs(input_folder, output_folder, scale_factor=0.5):
             print(f"Downscaled {file} to {new_size}")
 
 if __name__ == "__main__":
-    folder_path = "/workspaces/BEP-3D-scanner/datasets/ccvpeer/images"
-    output_folder = "/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaled/images"
+    folder_path = "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/images_HQ"
+    output_folder = "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/images2"
     #JPG2jpg("/workspaces/BEP-3D-scanner/datasets/pear/Peertje/images")
     #jpg2png(folder_path)
-    downscale_jpgs(folder_path, output_folder, 0.40)
+    downscale_jpgs(folder_path, output_folder, 0.4)
     

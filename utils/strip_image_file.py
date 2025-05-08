@@ -68,6 +68,6 @@ def read_metadata(path):
 #change_filename("/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images.txt", "/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images4.txt")
 #reorder_image_file("/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images2.txt", "/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images3.txt")
 # Example usage:
-#remove_every_other_line_from_line_6("/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images.txt", "/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images2.txt")
+remove_every_other_line_from_line_6("/workspaces/BEP-3D-scanner/datasets/peer_constant_f/sparsetxt4/images.txt", "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/sparsetxt4/images2.txt")
 
-print(read_metadata("/workspaces/BEP-3D-scanner/datasets/ccvpeer/images/PXL_20250429_154045599.jpg"))
+#print(read_metadata("/workspaces/BEP-3D-scanner/datasets/ccvpeer/images/PXL_20250429_154045599.jpg"))

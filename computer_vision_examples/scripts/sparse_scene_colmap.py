@@ -22,8 +22,10 @@ def create_reconstruction(image_dir, output_path, mvs_path, database_path):
     # pycolmap.poisson_meshing(output_path, ply_path)
 
 if __name__ == "__main__":
-    image_dir = "../../datasets/lego/train/"
-    output_path = "../../datasets/lego/train/"
+    image_dir = "datasets/ccvpeer_downscaled/"
+    output_path = "datasets/ccvpeer_downscaled/"
+    #image_dir = "datasets/pear_downscaled/Peertje/"
+    #output_path = "datasets/pear_downscaled/Peertje/"
 
     mvs_path = output_path + "mvs/"
     print("mvs_path: ", mvs_path)
