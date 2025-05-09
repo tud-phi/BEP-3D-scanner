@@ -1,4 +1,4 @@
-
+from numpy import random
 from PIL import Image, ExifTags
 
 def remove_every_other_line_from_line_6(input_path, output_path):
@@ -65,9 +65,29 @@ def read_metadata(path):
     exif = { ExifTags.TAGS[k]: v for k, v in img._getexif().items() if k in ExifTags.TAGS }
     return exif
 
+def wiggle_values(input_path, output_path, wiggle_value):
+    with open(input_path, 'r') as f:
+        lines = f.readlines()
+    new_lines = []
+    for line in lines:
+        split_line = line.split(" ")
+        if split_line[0] == '#':
+            continue
+        split_line = [float(value) * (1 + wiggle_value * (random.rand()-0.5)) if i in [1,2,3,4,5,6,7] else value for i, value in enumerate(split_line)]
+        print(split_line)
+        if split_line != ['']:
+            new_lines.append(split_line)
+    
+    new_new_lines = [' '.join(str(x) for x in line) for line in new_lines]
+
+    print(new_new_lines)
+    with open(output_path, 'w') as f:
+        f.writelines(new_new_lines)
+
+wiggle_values("/workspaces/BEP-3D-scanner/datasets/peer_constant_f/known_parameters/images_gt.txt", "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/known_parameters/images.txt", 0.1)
 #change_filename("/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images.txt", "/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images4.txt")
 #reorder_image_file("/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images2.txt", "/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images3.txt")
 # Example usage:
-remove_every_other_line_from_line_6("/workspaces/BEP-3D-scanner/datasets/peer_constant_f/sparsetxt4/images.txt", "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/sparsetxt4/images2.txt")
+#remove_every_other_line_from_line_6("/workspaces/BEP-3D-scanner/datasets/peer_constant_f/sparsetxt4/images.txt", "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/sparsetxt4/images2.txt")
 
 #print(read_metadata("/workspaces/BEP-3D-scanner/datasets/ccvpeer/images/PXL_20250429_154045599.jpg"))

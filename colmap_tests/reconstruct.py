@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 import pycolmap
 from database import COLMAPDatabase
 from time import perf_counter
@@ -28,17 +30,21 @@ def open_camera_file(path: str) -> list[str]:
     with open(path, 'r') as f:
        lines = f.readlines()
         
-    return [line.split(" ") for line in lines]
+    return [line[:-1].split(" ") for line in lines]
 
 def add_cams_to_database(database_path: str, cams_path: str) -> None:
     """adds camera parameters from cameras.txt to the database"""
     cams = open_camera_file(cams_path)
+
+    with open(Path(__file__).parent / "camera_models.json") as f:
+        CAMERA_STR_TO_NUMBER = json.load(f)
+
     db = COLMAPDatabase.connect(database_path)
+
     for cam in cams:
         if cam[0] == '#':
             continue
-        # For the params argument, i put cam[4:7] instead of cam[4:], otherwise extract_features() complains
-        db.add_camera(cam[1], cam[2], cam[3], cam[4:7])
+        db.add_camera(CAMERA_STR_TO_NUMBER[cam[1]], cam[2], cam[3], cam[4:])
     db.commit()
     db.close()
 
@@ -57,7 +63,7 @@ def reconstruct_with_known_poses(database_path: str, image_dir: str, output_path
 
     pycolmap.extract_features(database_path, image_dir)
     pycolmap.match_exhaustive(database_path)
-    #pycolmap.verify_matches(database_path)
+    #pycolmap.verify_matches(database_path, (f"{known_parameters_path}/points3D.txt"))
 
     reconstruction = pycolmap.Reconstruction()
     reconstruction.read(known_parameters_path)
