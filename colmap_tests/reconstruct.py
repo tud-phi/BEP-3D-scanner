@@ -57,6 +57,7 @@ def create_database(database_path: str) -> None:
 def reconstruct_with_known_poses(database_path: str, image_dir: str, output_path: str, known_parameters_path: str) -> None:
     """creates a ply file from images and their camera positions."""
 
+    t = perf_counter()
     create_database(database_path)
     add_imgs_to_database(database_path, f"{known_parameters_path}images.txt")
     add_cams_to_database(database_path, f"{known_parameters_path}cameras.txt")
@@ -70,7 +71,15 @@ def reconstruct_with_known_poses(database_path: str, image_dir: str, output_path
     reconstruction = pycolmap.triangulate_points(reconstruction, database_path, image_dir, output_path)
 
     reconstruction.export_PLY(f"{output_path}/sparse_reconstruction.ply")
+    print(f"reconstruct_with_known_poses took: {perf_counter()-t}s")
 
+def reconstruct_unknown_poses(database_path: str, image_dir: str, output_path: str) -> None:
+    t = perf_counter()
+    pycolmap.extract_features(database_path, image_dir)
+    pycolmap.match_exhaustive(database_path)
+    reconstruction = pycolmap.incremental_mapping(database_path, image_dir, output_path)
+    reconstruction[0].export_PLY(f"{output_path}/sparse_reconstruction_unknown.ply")
+    print(f"reconstruct_unknown_poses took: {perf_counter()-t}s")
 
 if __name__ == "__main__":
     database_path = "datasets/peer_constant_f/database.db"
@@ -78,4 +87,5 @@ if __name__ == "__main__":
     output_path = "datasets/peer_constant_f/"
     known_parameters_path = "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/known_parameters/"
     reconstruct_with_known_poses(database_path, image_dir, output_path, known_parameters_path)
+    #reconstruct_unknown_poses(database_path, image_dir, output_path)
 
