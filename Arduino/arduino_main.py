@@ -9,8 +9,8 @@ import os
 # Match your Arduino serial port
 PORT = 'COM3'
 BAUD = 9600
-CSV_FILE = 'coordinates_example.csv'
-radius = 200 #mm
+CSV_FILE = 'coordinates_example_5.csv'
+radius = 250 #mm
 
 def wait_for_response(ser, expected=None):
     while True:
@@ -118,10 +118,11 @@ def main():
         # Step 3: Get final position
         x_theta, y_phi = get_position(ser)
         print(f"Final Position: X={x_theta}°, Y={y_phi}°")
-
-        #command = f"MOVE_TO -50 0"
-        #send_command(ser, command, expect="MOVE_DONE")
-        #command = f"MOVE_TO -50 0"
+        send_command(ser, "LED1ON", expect="LED_1_ON_DONE")
+        command = f"MOVE_TO 0 135"
+        x_theta, y_phi = get_position(ser)
+        send_command(ser, command, expect="MOVE_DONE")
+        #command = f"MOVE_TO 0 0"
         #send_command(ser, command, expect="MOVE_DONE")
         # Step 4: Disable motors
         send_command(ser, "DISABLE", expect="STEPPERS_DISABLED")
@@ -139,3 +140,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
