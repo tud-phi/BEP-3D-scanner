@@ -6,7 +6,7 @@ import numpy as np
 #from matplotlib import pyplot as plt
 import os
 
-# Change this to match your Arduino serial port
+# Match your Arduino serial port
 PORT = 'COM3'
 BAUD = 9600
 CSV_FILE = 'coordinates_example.csv'
@@ -36,29 +36,34 @@ def get_position(ser):
             return int(x_theta), int(y_phi)
         
 def take_photo(x_val1,y_val1,z_val1):
-    cap = cv2.VideoCapture(0)
-    ret, frame = cap.read()
+    #cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)        #faster pictures + 1= second camera plugged 
+    #ret, frame = cap.read()
 
     # Make sure the folder exists
 #    os.makedirs("jemoedermap", exist_ok=True)
+    if not cap.isOpened():
+        print("Failed to open camera.")
+        return
+    time.sleep(1)
+    if not cap.isOpened():
+        print("aaahhh")
+        return
 
+    # Warm up the camera by capturing a few frames
+    for _ in range(10):
+        ret, frame = cap.read()
+
+    if ret:
     # Save to that folder
-    cv2.imwrite(f"testmap/test_{x_val1}_{y_val1}_{z_val1}.jpg", frame)
+        cv2.imwrite(f"testmap/test_{x_val1}_{y_val1}_{z_val1}.jpg", frame)
+    else:
+        print("Failed to capture frame.")
+    
     cap.release()
 
 
 def spherical_to_cartesian(theta_deg, phi_deg):
-    """
-    Converts spherical coordinates to cartesian.
-    
-    Parameters:
-        radius (float): Distance from origin
-        theta_deg (float): Angle in degrees in the X-Y plane from the X-axis (azimuth)
-        phi_deg (float): Angle in degrees from the Z-axis (inclination)
-
-    Returns:
-        (x, y, z): Cartesian coordinates as a tuple
-    """
     
     theta = np.radians(theta_deg)
     phi = np.radians(phi_deg)
@@ -94,7 +99,7 @@ def send_coordinates_from_csv(ser, filename):
         print(f"Moved to: X={x_theta}°, Y={y_phi}°")
         print(f"Coordinates: {x_val},{y_val},{z_val}")
         send_command(ser, "LED1ON", expect="LED_1_ON_DONE")
-        #take_photo(x_val,y_val,z_val)               #take photo and save it to folder
+        take_photo(x_val,y_val,z_val)               #take photo and save it to folder
         #time.sleep(2)
         send_command(ser, "LED1OFF", expect="LED_1_OFF_DONE")
 
@@ -114,9 +119,17 @@ def main():
         x_theta, y_phi = get_position(ser)
         print(f"Final Position: X={x_theta}°, Y={y_phi}°")
 
-
+        #command = f"MOVE_TO -50 0"
+        #send_command(ser, command, expect="MOVE_DONE")
+        #command = f"MOVE_TO -50 0"
+        #send_command(ser, command, expect="MOVE_DONE")
         # Step 4: Disable motors
         send_command(ser, "DISABLE", expect="STEPPERS_DISABLED")
+
+
+
+
+
 
     except Exception as e:
         print("Error:", e)
