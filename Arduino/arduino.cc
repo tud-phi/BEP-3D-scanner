@@ -21,7 +21,7 @@
 
 // Calibrated for motor + microstepping (e.g., 1.8° motor w/ 1/16 microstepping)
 const float stepsPerDegreex = 2.222;
-const float stepsPerDegreey = 8.888;
+const float stepsPerDegreey = 8.5470; //small 13, big 50 
 
 AccelStepper stepperX(DRIVER_MODE, X_STEP_PIN, X_DIR_PIN);
 AccelStepper stepperY(DRIVER_MODE, Y_STEP_PIN, Y_DIR_PIN);
@@ -35,14 +35,18 @@ void setup() {
   pinMode(Y_ENABLE_PIN, OUTPUT);
 
   enableSteppers();
+  stepperY.setPinsInverted(true, false, false); // (dir, step, enable)
+  
+  stepperX.setMaxSpeed(100);
+  stepperX.setAcceleration(10);
+  stepperY.setMaxSpeed(100);
+  stepperY.setAcceleration(100);
 
-  stepperX.setMaxSpeed(200);
-  stepperX.setAcceleration(50);
-  stepperY.setMaxSpeed(4000);
-  stepperY.setAcceleration(200);
-
-  // homeBothAxes();
+  // homeBothAxes();          //Home axis on startup
   // Serial.println("HOME_DONE");
+  //enableSteppers();
+  //moveToAngles(45, 0);
+  stepperY.setCurrentPosition(385*3);  // Set as zero kuuuuttttttttttttttttttttttttttttttttttttttttttttttttttttttt
   }
 
 void loop() {
@@ -143,5 +147,3 @@ digitalWrite(LED_1, HIGH);
 void LED1OFF(){
 digitalWrite(LED_1, LOW);  
 }
-
-
