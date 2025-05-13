@@ -1,0 +1,6 @@
+{
+    "SIMPLE_PINHOLE": 0,
+    "PINHOLE": 1,
+    "SIMPLE_RADIAL": 2,
+    "RADIAL": 3
+}

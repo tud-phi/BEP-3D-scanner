@@ -1,0 +1,14 @@
+{
+  "name": "Python 3.11 Dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "extensions": [
+    "ms-python.python"
+  ],
+  "settings": {
+    "python.defaultInterpreterPath": "/usr/local/bin/python"
+  },
+  "postCreateCommand": "pip install --upgrade pip",
+  "remoteUser": "root"
+}
