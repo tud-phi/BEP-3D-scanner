@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 import pycolmap
-from database import COLMAPDatabase
+from colmap.database import COLMAPDatabase
+#from database import COLMAPDatabase # if running this file as main
 from time import perf_counter
 
 def open_image_file(path: str) -> list[str]:
@@ -82,10 +83,10 @@ def reconstruct_unknown_poses(database_path: str, image_dir: str, output_path: s
     print(f"reconstruct_unknown_poses took: {perf_counter()-t}s")
 
 if __name__ == "__main__":
-    database_path = "datasets/peer_constant_f/database.db"
-    image_dir = "datasets/peer_constant_f/images/"
-    output_path = "datasets/peer_constant_f/"
-    known_parameters_path = "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/known_parameters/"
-    reconstruct_with_known_poses(database_path, image_dir, output_path, known_parameters_path)
-    #reconstruct_unknown_poses(database_path, image_dir, output_path)
+    database_path = "datasets/tweede_scan/database.db"
+    image_dir = "datasets/tweede_scan/images/"
+    output_path = "datasets/tweede_scan/"
+    known_parameters_path = "/workspaces/BEP-3D-scanner/datasets/tweede_scan/known_parameters/"
+    #reconstruct_with_known_poses(database_path, image_dir, output_path, known_parameters_path)
+    reconstruct_unknown_poses(database_path, image_dir, output_path)
 
