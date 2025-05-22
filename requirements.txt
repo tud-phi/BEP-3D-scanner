@@ -4,3 +4,5 @@ matplotlib
 pyserial
 pandas
 open3d
+rembg
+onnxruntime

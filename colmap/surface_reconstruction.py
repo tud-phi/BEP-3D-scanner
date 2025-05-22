@@ -21,8 +21,8 @@ def point_cloud2surface(point_cloud, outlier_neighbors=10, outlier_threshold=2, 
 
 if __name__ == "__main__":
 
-    pcd = o3d.io.read_point_cloud("datasets/docker_test/sparse_reconstruction.ply")
+    pcd = o3d.io.read_point_cloud("datasets/ignore_plastic_pear/sparse_reconstruction_unknown.ply")
 
     mesh = point_cloud2surface(pcd)
 
-    o3d.io.write_triangle_mesh("datasets/docker_test/sparse_reconstruction_surface.ply", mesh)
+    o3d.io.write_triangle_mesh("datasets/ignore_plastic_pear/sparse_reconstruction_surface.ply", mesh)
