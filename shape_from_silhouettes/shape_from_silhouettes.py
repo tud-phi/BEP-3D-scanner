@@ -1,28 +1,37 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
-from create_silhouettes import remove_background_white
+from create_silhouettes import remove_background_white, remove_background_rembg
 from PIL import Image
 import open3d as o3d
+import matplotlib.pyplot as plt
+import itertools
 
-def project_point(P_world: np.ndarray, K: np.ndarray, R: np.ndarray, t: np.ndarray) -> tuple[float, float]:
-    """Projects a point in world coordinates on an image"""
+def project_world_point_on_cam(P_world: np.ndarray, K: np.ndarray, R: np.ndarray, t: np.ndarray) -> tuple[float, float]:
+    """Projects a point in world coordinates on an image
+    
+    Parameters
+    ----------
+    P_world: np.ndarray
+        array with size (3,) with world coordinates of a point
+    K: np.ndarray
+        instrinsic camera matrix, size (3,3)
+    R: np.ndarray
+        rotation matrix from world to camera frame, size (3,3)
+    t: np.ndarray
+        translation vector, coordinates of the world origin in the camera frame
+
+    Returns
+    -------
+    tuple[float, float]
+        pixel coordinates of P_world
+    """
     P_cam = R @ P_world + t
     p = K @ P_cam
 
     u = p[0] / p[2]
     v = p[1] / p[2]
 
-    return u, v
-
-def project_points(P_world: np.ndarray, K: np.ndarray, R: np.ndarray, t: np.ndarray) -> tuple[float, float]:
-    """Projects a point in world coordinates on an image"""
-    P_cam = R @ P_world.T + t
-    p = K @ P_cam
-
-    u = p[0, :] / p[2, :]
-    v = p[1, :] / p[2, :]
-
-    return np.column_stack((u, v))
+    return v, u
 
 
 def quaternions2matrices(quaterions: list[float]) -> tuple[np.ndarray, np.ndarray]:
@@ -30,7 +39,6 @@ def quaternions2matrices(quaterions: list[float]) -> tuple[np.ndarray, np.ndarra
     qw, qx, qy, qz, tx, ty, tz = quaterions[0], quaterions[1], quaterions[2], quaterions[3], quaterions[4], quaterions[5], quaterions[6]
     rot = Rotation.from_quat([qx, qy, qz, qw], scalar_first=False)
     R = rot.as_matrix()
-    #R = np.linalg.inv(R)
     print(R)
     t = np.array([tx, ty, tz])
     return R, t
@@ -53,7 +61,7 @@ def check_points_inside_silhouette(points: np.ndarray, silhouette: np.ndarray, K
     pixels = np.zeros(pixels_shape)
 
     for i, point in enumerate(points):
-        pixel = project_point(point, K, R, t)
+        pixel = project_world_point_on_cam(point, K, R, t)
         if int(pixel[0]) < 0 or int(pixel[0]) >= silhouette.shape[0]:
             continue
         if int(pixel[1]) < 0 or int(pixel[1]) >= silhouette.shape[1]:
@@ -78,116 +86,135 @@ def create_point_grid(n_points: int, bounds: tuple[tuple[float, float], tuple[fl
 
     return xyz
 
-def check_multiple_silhouettes(points, silhouettes, Ks, quats) -> np.ndarray:
-    """creates an array 'point_scores' that keeps track for each point in 'points' how many times it fell inside a silhouette"""
+def voxel_carve(points: np.ndarray, silhouettes: np.ndarray, Ks: np.ndarray, quats: np.ndarray) -> np.ndarray:
+    """creates an array 'point_scores' that keeps track for each point in 'points' how many times it fell inside a silhouette
+    
+    Parameters
+    ----------
+    points: np.ndarray
+        array of shape (N, 3), with candidate points for the reconstructed object
+    silhouettes: np.ndarray
+        array of shape (M, H, W) with binary masks representing the silhouettes of an object. 0 is outside, 1 inside.
+    Ks: np.ndarray
+        array of shape (M, 3, 3) with the intrinsic camera matrices corresponding to the silhouettes
+    quats: np.ndarray
+        array of shape (M, 7) with quaternions and translation information of the camera positions. Format: [QW, QX, QY, QZ, TX, TY, TZ].
+        TX, TY, TZ are the coordinates of the world origin in the camera frame. The quaternions represent the rotation from world to camera frame.
+    
+    Returns
+    -------
+    np.ndarray
+        array of shape (N, s), every point from the input has a score corresponding to the amount of silhouettes it was included in.
+    """
     point_scores = np.zeros_like(points)[:,1]
     for i, silhouette in enumerate(silhouettes):
         R, t = quaternions2matrices(quats[i])
-        inside, pixels = check_points_inside_silhouette(points, silhouette, Ks[i], R, t)
+        inside, _ = check_points_inside_silhouette(points, silhouette, Ks[i], R, t)
         point_scores += inside
     return point_scores
 
 def save_points_to_ply(points: np.ndarray, filename: str):
+    """writes an array with point coordinates to the specified path"""
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
     o3d.io.write_point_cloud(filename, pcd)
 
+def add_point_to_pointcloud(pcd, new_points, color=None):
+    """add points to an open3d point cloud object"""
+    points = np.asarray(pcd.points)
+    colors = np.zeros_like(pcd.points)
+    
+    if color is not None:
+        points = np.vstack([points, new_points])
+        new_colors = np.ones_like(new_points)
+    
+        new_colors[:] = color
+        old_colors = np.ones_like(colors)
+        colors = np.vstack([old_colors, new_colors])
 
-def main1():
-    bounds = ((-2, 2), (-2, 2), (-2, 2))
+    pcd.points = o3d.utility.Vector3dVector(points)
+    pcd.colors = o3d.utility.Vector3dVector(colors)
 
-    quats = [
-        [0.57133172957433154, -0.81660326182624077, 0.057269012182718286, -0.058816900632070367, 0.06691831058771068, -0.067460496226414798, 3.7942352583536048],
-        [0.61603289521404159, 0.78137561603527006, -0.033474515216036539, 0.093995082375406644, 0.0038212992141732622, 0.27936470712046985, 3.8791366990108282],
-        #[0.23070171790546706, 0.96645255518622797, -0.043070241499694635, 0.10436057793360246, -0.034598077411302879, 0.15139390785730958, 3.9874903235340771],
-        #[-0.062870393213185771, 0.99225368300901506, -0.041041249535174185, 0.09897251158203485, 0.084274160340428922, 0.11960455360498207, 4.0504611091577871],
-        #[0.40930292759508469, 0.90537467046948072, -0.036230856901334797, 0.10702870896431053, -0.025099895976071367, 0.17160434474739894, 3.9535847385733418],
-        #[0.71970658589476533, 0.68923045906380076, -0.028499703922732392, 0.078559349505453596, 0.048899892774562241, 0.25583972227421953, 3.8349755134870365],
-        #[-0.25142018094371332, 0.96315525978171612, -0.039721197279900984, 0.086845061204980367, 0.092672695080363174, -0.039761952317510202, 3.9974308645759082],
-        #[-0.3712645943338943, 0.92444315941793342, -0.04519629279886811, 0.074328602278781547, 0.07238464552150356, -0.044640719403162547, 3.9241331820036462],
-        #[0.843920773417285, 0.53227588704915985, -0.021647213632806656, 0.063336453979814841, 0.069233163619734195, 0.26651497929625334, 3.7613549419943064],
-        #[0.98555766803485834, 0.16755696166417461, -0.0060819850256027957, 0.023743568259860806, 0.14713874614173025, 0.11327709460266526, 3.6629367309101837],
-        #[0.99999987596450191, 0.00001716552323680, -0.0004781610746267733, 0.0001383412893918577, 0.12230563185152503, -0.019471164434637537, 3.6460223993437038],
-        #[0.97328580679805199, -0.22767600216760062, 0.014409006697813899, -0.025898973887514706, 0.15179127900126782, -0.11395109501186045, 3.6577619172509905],
-        #[0.89622394096364955, -0.44039593024811324, 0.026251135853152523, -0.046313606325824069, 0.15817930076807374, -0.17192946536764911, 3.7180242143078899]
-    ]
+    return pcd
 
-    paths = [
-        "datasets/peer_constant_f/images/IMG_20250507_144447.jpg",
-        "datasets/peer_constant_f/images/IMG_20250507_144459.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144456.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144453.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144457.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144459~2.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144451.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144449.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144501.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144503.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144504.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144505.jpg",
-        #"datasets/peer_constant_f/images/IMG_20250507_144507.jpg"
-    ]
+def load_poses_from_file(path: str) -> tuple[np.ndarray, np.ndarray, list]:
+    """reads images.txt and outputs an array with the camera orientations, a list with camera ids and a list with image paths"""
+    poses = []
+    cameras = []
+    paths = []
+    with open(path, 'r') as file:
+        for line in file:
+            parts = line.strip().split()
+            if len(parts) < 9:
+                continue
+            if parts[0] == '#':
+                continue
 
-    grid = create_point_grid(50, bounds)
+            qw = float(parts[1])
+            qx = float(parts[2])
+            qy = float(parts[3])
+            qz = float(parts[4])
+            tx = float(parts[5])
+            ty = float(parts[6])
+            tz = float(parts[7])
+            camera = int(parts[8])
+            path = parts[9]
+
+            poses.append([qw, qx, qy, qz, tx, ty, tz])
+            cameras.append(camera)
+            paths.append(path)
+
+    return np.array(poses), np.array(cameras), paths
 
 
-    f = 2700.74
+def main():
+    quats, camera_ids, paths = load_poses_from_file("datasets/peer_constant_f/known_parameters/images.txt")
+
+    # only use images with camera id 2
+    quats = quats[camera_ids==2]
+    paths = list(itertools.compress(paths, camera_ids==2))
+
+    bounds = ((-1.5, 1.5), (-0.85, 0.85), (-0.85, 0.85))
+    grid = create_point_grid(20, bounds)
+
+
+    #f = 2700.74
+    f = 2708.99
     p_x = 806
     p_y = 604.5
 
     K = np.array([[f, 0, p_x],
                 [0, f, p_y],
                 [0,0,1]])
-
-    Ks = [K for _ in paths]
-
-    silhouettes = [remove_background_white(path) for path in paths]
-
-    point_scores = check_multiple_silhouettes(grid, silhouettes, Ks, quats)
-    print(point_scores.max())
-    selected_points = grid[point_scores >= 1]
-
-    save_points_to_ply(selected_points, 'datasets/peer_constant_f/selected_points1.ply')
-
-
-main1()
-
-# def main2():
     
 
-#     bounds = ((-31, 31), (-31, 31), (-31, 31))
+    Ks = np.array([K for _ in paths])
 
-#     grid = create_point_grid(50, bounds)
+    silhouettes = np.array([remove_background_rembg("datasets/peer_constant_f/images/"+path) for path in paths])
 
-#     paths = [
-#         "datasets/ignore_mouse/IMG_20250522_134917.jpg",
-#         "datasets/ignore_mouse/IMG_20250522_134923.jpg"
-#     ]
+    plt.imshow(silhouettes[0], cmap='gray', interpolation='nearest')
+    plt.savefig(f"sil_plt.png", dpi=300)
 
+    point_scores = voxel_carve(grid, silhouettes, Ks, quats)
+    print(point_scores.max())
+    selected_points = grid[point_scores >= int(point_scores.max() * 0.7)]
 
-#     f = 1380
-#     p_x = 3024/2
-#     p_y = 4032/2
+    # x_vals = bounds[0]
+    # y_vals = bounds[1]
+    # z_vals = bounds[2]
 
-#     K = np.array([[f, 0, p_x],
-#                 [0, f, p_y],
-#                 [0,0,1]])
+    # # Cartesian product of all combinations
+    # corners = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
 
-#     Ks = [K for _ in paths]
+    # pcd = o3d.geometry.PointCloud()
+    # pcd.points = o3d.utility.Vector3dVector(selected_points)
 
-#     quats = [
-#         [1, 0, 0, 0, 0, 0, -30],
-#         [0, 0, np.sin(np.pi/4), np.cos(np.pi/4), -30, 0, 0]
-#     ]
+    # pcd = add_point_to_pointcloud(pcd, corners, np.array([0, 1, 0]))
+    
+    # o3d.io.write_point_cloud('datasets/peer_constant_f/test.ply', pcd)
 
-#     silhouettes = [remove_background_white(path) for path in paths]
-
-#     point_scores = check_multiple_silhouettes(grid, silhouettes, Ks, quats)
-#     print(point_scores.max())
-#     selected_points = grid[point_scores >= 1]
-
-#     save_points_to_ply(selected_points, 'datasets/ignore_mouse/mouse.ply')
+    save_points_to_ply(selected_points, 'datasets/peer_constant_f/test.ply')
 
 
-
+main()
 

@@ -3,7 +3,7 @@ from rembg import remove
 from PIL import Image
 import numpy as np
 
-def remove_background_rembg(input_path, output_path):
+def remove_background_rembg(input_path, output_path=None):
     # Processing the image
     input = Image.open(input_path)
 
@@ -12,11 +12,14 @@ def remove_background_rembg(input_path, output_path):
 
     output = np.array(output)
 
-    mask = (output == 0).astype(np.uint8)
-    mask = (mask[:,:,0]) * 255
+    mask = (output != 0).astype(np.uint8)
+    mask = (mask[:,:,0])
 
-    im = Image.fromarray(mask)
-    im.save(output_path)
+    if output_path is not None:
+        im = Image.fromarray(mask)
+        im.save(output_path)
+
+    return mask
 
 def remove_background_white(input_path, output_path=None):
     # Processing the image
