@@ -21,8 +21,10 @@ def point_cloud2surface(point_cloud, outlier_neighbors=10, outlier_threshold=2, 
 
 if __name__ == "__main__":
 
-    pcd = o3d.io.read_point_cloud("datasets/peer_constant_f/selected_points10.ply")
+    name = 'reconstruct'
+
+    pcd = o3d.io.read_point_cloud(f"datasets/peer_constant_f/{name}.ply")
 
     mesh = point_cloud2surface(pcd)
 
-    o3d.io.write_triangle_mesh("datasets/peer_constant_f/selected_points10_surface.ply", mesh)
+    o3d.io.write_triangle_mesh(f"datasets/peer_constant_f/{name}_surface.ply", mesh)

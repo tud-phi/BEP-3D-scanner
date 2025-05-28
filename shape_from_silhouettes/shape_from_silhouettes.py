@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from scipy.spatial.transform import Rotation
 from create_silhouettes import remove_background_white, remove_background_rembg
@@ -39,7 +40,6 @@ def quaternions2matrices(quaterions: list[float]) -> tuple[np.ndarray, np.ndarra
     qw, qx, qy, qz, tx, ty, tz = quaterions[0], quaterions[1], quaterions[2], quaterions[3], quaterions[4], quaterions[5], quaterions[6]
     rot = Rotation.from_quat([qx, qy, qz, qw], scalar_first=False)
     R = rot.as_matrix()
-    print(R)
     t = np.array([tx, ty, tz])
     return R, t
 
@@ -74,20 +74,29 @@ def check_points_inside_silhouette(points: np.ndarray, silhouette: np.ndarray, K
             pixels[int(pixel[0]), int(pixel[1])] = np.array([255, 255, 255])
     return inside_points, pixels
 
-def create_point_grid(n_points: int, bounds: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]) -> np.ndarray:
-    """creates a grid of 3D points"""
-    x_vals = np.linspace(bounds[0][0], bounds[0][1], n_points)
-    y_vals = np.linspace(bounds[1][0], bounds[1][1], n_points)
-    z_vals = np.linspace(bounds[2][0], bounds[2][1], n_points)
 
-    # Create a grid
-    x_grid, y_grid, z_grid = np.meshgrid(x_vals, y_vals, z_vals)
+def create_point_grid(radius: float, bounds: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]) -> np.ndarray:
+    """Creates a grid of 3D points with equal spacing based on the given radius."""
+    spacing = radius
+
+    # Compute number of points along each axis
+    x_min, x_max = bounds[0]
+    y_min, y_max = bounds[1]
+    z_min, z_max = bounds[2]
+
+    x_vals = np.arange(x_min, x_max + spacing, spacing)
+    y_vals = np.arange(y_min, y_max + spacing, spacing)
+    z_vals = np.arange(z_min, z_max + spacing, spacing)
+
+    # Create a 3D grid
+    x_grid, y_grid, z_grid = np.meshgrid(x_vals, y_vals, z_vals, indexing='ij')
     xyz = np.stack([x_grid.ravel(), y_grid.ravel(), z_grid.ravel()], axis=1)
 
     return xyz
 
-def voxel_carve(points: np.ndarray, silhouettes: np.ndarray, Ks: np.ndarray, quats: np.ndarray) -> np.ndarray:
-    """creates an array 'point_scores' that keeps track for each point in 'points' how many times it fell inside a silhouette
+
+def voxel_carve(points: np.ndarray, silhouettes: np.ndarray, Ks: np.ndarray, quats: np.ndarray, score_threshold: float=0.7) -> np.ndarray:
+    """carves a 3d reconstruction from a group of candidate points using silhouettes
     
     Parameters
     ----------
@@ -100,18 +109,105 @@ def voxel_carve(points: np.ndarray, silhouettes: np.ndarray, Ks: np.ndarray, qua
     quats: np.ndarray
         array of shape (M, 7) with quaternions and translation information of the camera positions. Format: [QW, QX, QY, QZ, TX, TY, TZ].
         TX, TY, TZ are the coordinates of the world origin in the camera frame. The quaternions represent the rotation from world to camera frame.
-    
+    score_threshold: float, default: 0.7
+        points that have a score below M * score_threshold are discarded, the rest is kept
+        
     Returns
     -------
     np.ndarray
-        array of shape (N, s), every point from the input has a score corresponding to the amount of silhouettes it was included in.
+        array of shape (S, 3), containing coordinates of the input points not discarded
     """
     point_scores = np.zeros_like(points)[:,1]
     for i, silhouette in enumerate(silhouettes):
         R, t = quaternions2matrices(quats[i])
         inside, _ = check_points_inside_silhouette(points, silhouette, Ks[i], R, t)
         point_scores += inside
-    return point_scores
+
+    selected_points = points[point_scores >= int(silhouettes.shape[0] * score_threshold)]
+
+    return selected_points
+
+def remove_inside_points(points):
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+    pcd_tree = o3d.geometry.KDTreeFlann(pcd)
+
+    k = 27
+    avg_distances = []
+    for i in range(len(pcd.points)):
+        [_, _, dist] = pcd_tree.search_knn_vector_3d(pcd.points[i], k)
+        avg_distances.append((np.mean(np.sqrt(dist[1:])) + 1e-8))
+    avg_distances = np.array(avg_distances)
+    #mean_avg_distance = avg_distances.mean()
+
+    min_avg_distance = avg_distances.min()
+    points_to_keep = points[avg_distances > min_avg_distance * 1.01]
+
+    return points_to_keep
+
+def increase_point_cloud_density(points, radius):
+    """increases a point cloud density by adding 6 points per point: one on each side"""
+    points_xup = points.copy()
+    points_xdown = points.copy()
+    points_yup = points.copy()
+    points_ydown = points.copy()
+    points_zup = points.copy()
+    points_zdown = points.copy()
+
+    points_xup[:,0] += 0.5 * radius
+    points_yup[:,1] += 0.5 * radius
+    points_zup[:,2] += 0.5 * radius
+    points_xdown[:,0] -= 0.5 * radius
+    points_ydown[:,1] -= 0.5 * radius
+    points_zdown[:,2] -= 0.5 * radius
+
+    new_points = np.concatenate((points, points_xup, points_yup, points_zup, points_xdown, points_ydown, points_zdown))
+    new_points = np.unique(new_points, axis=0)
+
+    return new_points
+
+def expand_point_cloud_with_grid(points: np.ndarray, spacing: float = 1.0) -> np.ndarray:
+    """For each point, creates 26 neighboring points in a 3x3x3 grid (excluding the center)."""
+    # Create all offsets in a 3x3x3 grid
+    offsets = np.array([
+        [dx, dy, dz]
+        for dx in [-1, 0, 1]
+        for dy in [-1, 0, 1]
+        for dz in [-1, 0, 1]
+        if not (dx == 0 and dy == 0 and dz == 0)
+    ]) * spacing
+
+    # Expand points: (N, 1, 3) + (1, 26, 3) -> (N, 26, 3)
+    neighbor_points = points[:, np.newaxis, :] + offsets[np.newaxis, :, :]
+    # Reshape to (N*26, 3)
+    neighbor_points = neighbor_points.reshape(-1, 3)
+    neighbor_points = np.unique(neighbor_points, axis=0)
+
+    return neighbor_points
+
+def iterative_voxel_carving(n_iterations: int, radius: float, points: np.ndarray, silhouettes: np.ndarray, Ks: np.ndarray, quats: np.ndarray, score_threshold: float=0.7):
+    for i in range(n_iterations):
+        print(f"iteration {i}")
+        t = time.perf_counter()
+        selected_points = voxel_carve(point_cloud, silhouettes, Ks, quats, score_threshold=score_threshold)
+        print(f"voxel_carve: {time.perf_counter()-t}s")
+
+        t = time.perf_counter()
+        n_selected_points = selected_points.shape[0]
+        filtered_points = remove_inside_points(selected_points)
+        print(f"removed {filtered_points.shape[0] - n_selected_points} points")
+        print(f"remove_inside_points: {time.perf_counter()-t}s")
+
+        t = time.perf_counter()
+        denser_points = expand_point_cloud_with_grid(filtered_points, radius * 0.5**i)
+        print(f"increase_point_cloud_density: {time.perf_counter()-t}s")
+
+        print(f"points in point cloud: {denser_points.shape}")
+        save_points_to_ply(denser_points, f'datasets/peer_constant_f/iteration_{i}.ply')
+
+        point_cloud = denser_points
+
+
 
 def save_points_to_ply(points: np.ndarray, filename: str):
     """writes an array with point coordinates to the specified path"""
@@ -175,7 +271,9 @@ def main():
     paths = list(itertools.compress(paths, camera_ids==2))
 
     bounds = ((-1.5, 1.5), (-0.85, 0.85), (-0.85, 0.85))
-    grid = create_point_grid(20, bounds)
+    radius = (bounds[0][1]-bounds[0][0]) / 60
+    grid = create_point_grid(radius, bounds)
+    print(grid.shape)
 
 
     #f = 2700.74
@@ -190,14 +288,18 @@ def main():
 
     Ks = np.array([K for _ in paths])
 
+    t = time.perf_counter()
     silhouettes = np.array([remove_background_rembg("datasets/peer_constant_f/images/"+path) for path in paths])
+    print(f"silhouettes: {t-time.perf_counter()}s")
 
     plt.imshow(silhouettes[0], cmap='gray', interpolation='nearest')
     plt.savefig(f"sil_plt.png", dpi=300)
 
-    point_scores = voxel_carve(grid, silhouettes, Ks, quats)
-    print(point_scores.max())
-    selected_points = grid[point_scores >= int(point_scores.max() * 0.7)]
+    selected_points = voxel_carve(grid, silhouettes, Ks, quats, score_threshold=0.7)
+    n_selected_points = selected_points.shape[0]
+    filtered_points = remove_inside_points(selected_points)
+    save_points_to_ply(filtered_points, f'datasets/peer_constant_f/reconstruct.ply')
+
 
     # x_vals = bounds[0]
     # y_vals = bounds[1]
@@ -212,8 +314,7 @@ def main():
     # pcd = add_point_to_pointcloud(pcd, corners, np.array([0, 1, 0]))
     
     # o3d.io.write_point_cloud('datasets/peer_constant_f/test.ply', pcd)
-
-    save_points_to_ply(selected_points, 'datasets/peer_constant_f/test.ply')
+    #save_points_to_ply(point_cloud, 'datasets/peer_constant_f/iterative8.ply')
 
 
 main()
