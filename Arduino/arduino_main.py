@@ -7,9 +7,9 @@ import numpy as np
 import os
 
 # Match your Arduino serial port
-PORT = 'COM9'
+PORT = 'COM5'
 BAUD = 9600
-CSV_FILE = 'Arduino/coordinates_example_5.csv'
+CSV_FILE = 'coordinates_example_6.csv'
 radius = 250 #mm
 
 def wait_for_response(ser, expected=None):
@@ -35,9 +35,9 @@ def get_position(ser):
             _, x_theta, y_phi = line.split()
             return int(x_theta), int(y_phi)
         
-def take_photo(cap, x_val1,y_val1,z_val1):
+def take_photo(cap, x_val1,y_val1):
     #cap = cv2.VideoCapture(0)
-    
+    #cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)        #faster pictures + 1= second camera plugged 
     #ret, frame = cap.read()
 
     # Make sure the folder exists
@@ -51,43 +51,12 @@ def take_photo(cap, x_val1,y_val1,z_val1):
         return
 
     # Warm up the camera by capturing a few frames
-    t = time.perf_counter()
-    print("start taking pics")
-    for _ in range(3):
+    for _ in range(10):
         ret, frame = cap.read()
-    print(time.perf_counter()-t)
 
     if ret:
     # Save to that folder
-        cv2.imwrite(f"testmap/test_{x_val1}_{y_val1}_{z_val1}.jpg", frame)
-    else:
-        print("Failed to capture frame.")
-
-def take_photo_spherical(cap, theta, phi):
-    #cap = cv2.VideoCapture(0)
-    
-    #ret, frame = cap.read()
-
-    # Make sure the folder exists
-#    os.makedirs("jemoedermap", exist_ok=True)
-    if not cap.isOpened():
-        print("Failed to open camera.")
-        return
-    time.sleep(1)
-    if not cap.isOpened():
-        print("aaahhh")
-        return
-
-    # Warm up the camera by capturing a few frames
-    t = time.perf_counter()
-    print("start taking pics")
-    for _ in range(3):
-        ret, frame = cap.read()
-    print(time.perf_counter()-t)
-
-    if ret:
-    # Save to that folder
-        cv2.imwrite(f"testmap/test_{theta}_{phi}.jpg", frame)
+        cv2.imwrite(f"testmaplien/test_{x_val1}_{y_val1}.jpg", frame)
     else:
         print("Failed to capture frame.")
     
@@ -106,42 +75,56 @@ def spherical_to_cartesian(theta_deg, phi_deg):
 
 
 
-def send_coordinates_from_csv(ser, filename):
+"""def send_coordinates_from_csv(ser, filename):
     df = pd.read_csv(filename)
-
-    t = time.perf_counter()
-    print("start configuring cam")
-    cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)        #faster pictures + 1= second camera plugged 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-    print(time.perf_counter()-t)
 
     # Assumes columns: Index, X, Y (X in 2nd column, Y in 3rd)
     for i, row in df.iterrows():
-        x_theta = int(row[2])
-        y_phi= int(row[1])
+        x_theta = int(row[1])
+        y_phi= int(row[2])
         #print(np.sin(x_theta))
         #print(np.sin(y_phi))
-
-        
-
-        #x_val = round(spherical_to_cartesian(x_theta, y_phi)[0], 0)
-        #y_val = round(spherical_to_cartesian(x_theta, y_phi)[1], 0)
-        #z_val = round(spherical_to_cartesian(x_theta, y_phi)[2], 0)
+   
+        x_val = round(spherical_to_cartesian(x_theta, y_phi)[0], 0)
+        y_val = round(spherical_to_cartesian(x_theta, y_phi)[1], 0)
+        z_val = round(spherical_to_cartesian(x_theta, y_phi)[2], 0)
 
         #print(x_theta)
         #print(y_phi)
         command = f"MOVE_TO {x_theta} {y_phi}"
         send_command(ser, command, expect="MOVE_DONE")
         print(f"Moved to: X={x_theta}°, Y={y_phi}°")
-        #print(f"Coordinates: {x_val},{y_val},{z_val}")
-        send_command(ser, "LED1ON", expect="LED_1_ON_DONE")
-        #take_photo(cap, x_val,y_val,z_val)               #take photo and save it to folder
-        take_photo_spherical(cap, x_theta, y_phi)
+        print(f"Coordinates: {x_val},{y_val},{z_val}")
+        #send_command(ser, "LED1ON", expect="LED_1_ON_DONE")
+        take_photo(x_val,y_val,z_val)               #take photo and save it to folder
         #time.sleep(2)
-        send_command(ser, "LED1OFF", expect="LED_1_OFF_DONE")
-    cap.release()
+        #send_command(ser, "LED1OFF", expect="LED_1_OFF_DONE"       """
 
+def generate_and_send_coordinates(ser):
+    x_values = list(range(50, 136, 40))  
+    y_values = list(range(0, 361, 30))  
+    cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    for y_phi in y_values:
+        for x_theta in x_values:
+            try:
+
+                x_val = round(spherical_to_cartesian(int(x_theta), int(y_phi))[0], 0)
+                y_val = round(spherical_to_cartesian(int(x_theta), int(y_phi))[1], 0)
+                z_val = round(spherical_to_cartesian(int(x_theta), int(y_phi))[2], 0)
+
+                command = f"MOVE_TO {x_theta} {y_phi}"
+                send_command(ser, command, expect="MOVE_DONE")
+                print(f"Moved to: X={x_theta}°, Y={y_phi}°")
+                print(f"Coordinates: {x_val},{y_val},{z_val}")
+
+                take_photo(cap, x_theta, y_phi)
+
+            except Exception as e:
+                print(f"Error at coordinates ({x_theta}, {y_phi}): {e}")
+    cap.release()
+    
 
 def main():
     ser = serial.Serial(PORT, BAUD, timeout=1)
@@ -149,22 +132,27 @@ def main():
 
     try:
         # Step 1: Home the system
-        #send_command(ser, "HOME", expect="HOME_DONE")
- 
+        #send_command(ser, "LED1OFF", expect="LED_1_OFF_DONE")
+        send_command(ser, "LED1ON", expect="LED_1_ON_DONE")
+        #time.sleep(60)
+        send_command(ser, "HOME_X", expect="HOME_X_DONE")
+        
         # Step 2: Send positions from CSV
-        send_coordinates_from_csv(ser, CSV_FILE)
+        #send_coordinates_from_csv(ser, CSV_FILE)
+        generate_and_send_coordinates(ser)
 
         # Step 3: Get final position
         x_theta, y_phi = get_position(ser)
         print(f"Final Position: X={x_theta}°, Y={y_phi}°")
-        send_command(ser, "LED1ON", expect="LED_1_ON_DONE")
-        command = f"MOVE_TO 0 135"
+        #send_command(ser, "LED1ON", expect="LED_1_ON_DONE")
+        command = f"MOVE_TO 135 0"
         x_theta, y_phi = get_position(ser)
         send_command(ser, command, expect="MOVE_DONE")
         #command = f"MOVE_TO 0 0"
         #send_command(ser, command, expect="MOVE_DONE")
         # Step 4: Disable motors
         send_command(ser, "DISABLE", expect="STEPPERS_DISABLED")
+        send_command(ser, "LED1OFF", expect="LED_1_OFF_DONE")
 
 
 
