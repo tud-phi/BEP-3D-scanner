@@ -7,7 +7,7 @@ def point_cloud2surface(point_cloud, outlier_neighbors=10, outlier_threshold=2, 
     point_cloud, ind = point_cloud.remove_statistical_outlier(nb_neighbors=outlier_neighbors, std_ratio=outlier_threshold)
 
     # estimate normals for poisson surface reconstruction
-    point_cloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.5, max_nn=10))
+    point_cloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.5, max_nn=20))
 
     # orient the normals outward
     center = point_cloud.get_center()
@@ -21,10 +21,10 @@ def point_cloud2surface(point_cloud, outlier_neighbors=10, outlier_threshold=2, 
 
 if __name__ == "__main__":
 
-    name = 'reconstruct'
+    name = 'sparse_reconstruction'
 
-    pcd = o3d.io.read_point_cloud(f"datasets/peer_constant_f/{name}.ply")
+    pcd = o3d.io.read_point_cloud(f"datasets/ignore_machine5/{name}.ply")
 
     mesh = point_cloud2surface(pcd)
 
-    o3d.io.write_triangle_mesh(f"datasets/peer_constant_f/{name}_surface.ply", mesh)
+    o3d.io.write_triangle_mesh(f"datasets/ignore_machine5/{name}_surface.ply", mesh)
