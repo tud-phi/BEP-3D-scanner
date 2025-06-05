@@ -1,4 +1,5 @@
 # Importing Required Modules
+import os
 from rembg import remove
 from PIL import Image
 import numpy as np
@@ -16,7 +17,8 @@ def remove_background_rembg(input_path, output_path=None):
     mask = (mask[:,:,0])
 
     if output_path is not None:
-        im = Image.fromarray(mask)
+        mask_rbg = mask * 255
+        im = Image.fromarray(mask_rbg)
         im.save(output_path)
 
     return mask
@@ -44,7 +46,10 @@ if __name__ == '__main__':
     # Store path of the output image in the variable output_path
     output_path = 'datasets/ignore_mouse/sil2.jpg'
 
-
-    remove_background_white(input_path, output_path)
+    dir = "datasets/peer_constant_f/images/"
+    paths = os.listdir(dir)
+    for path in paths:
+        output_path = "datasets/peer_constant_f/silhouettes/sil_"+path
+        sil = remove_background_rembg(dir+path, output_path)
     #Saving the image in the given path
     #output.save(output_path)

@@ -41,7 +41,7 @@ def extract_features(image_path, feature_method='sift', max_features=2000):
     return keypoints, descriptors, img_with_features
 
 
-image_path = "../../datasets/lego/train/images/train-r_0.png"  # Replace with your image path
+image_path = "datasets/ignore_machine2/images_cropped/test_-1.0_-4.0_-250.0.jpg"  # Replace with your image path
 
 # Extract features with different methods
 kp_sift, desc_sift, vis_sift = extract_features(image_path, 'sift')
@@ -123,8 +123,8 @@ def visualize_matches(img1, kp1, img2, kp2, matches, max_display=100):
     return match_img
 
 # Load two images
-img1_path = "../../datasets/lego/train/images/train-r_0.png" 
-img2_path = "../../datasets/lego/train/images/train-r_1.png"
+img1_path = "datasets/ignore_machine3/images_cropped/test_-0.0_-4.0_-250.0.jpg" 
+img2_path = "datasets/ignore_machine3/images_cropped/test_-3.0_-3.0_-250.0.jpg"
     
 # Extract features using SIFT (or your preferred method)
 kp1, desc1, _ = extract_features(img1_path, 'sift')
@@ -145,7 +145,7 @@ plt.imshow(cv2.cvtColor(match_visualization, cv2.COLOR_BGR2RGB))
 plt.title(f"Feature Matches: {len(good_matches)}")
 plt.axis('off')
 plt.tight_layout()
-plt.show() 
+plt.savefig("matches.png") 
 
 
 #--- estimating the pose of the camera and 3D position of the points

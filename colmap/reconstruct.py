@@ -7,12 +7,16 @@ from time import perf_counter
 
 def open_image_file(path: str) -> list[str]:
     with open(path, 'r') as f:
-       lines = f.readlines()
+        lines = f.readlines()
     imgs = []
+    skip = 0
     for i, line in enumerate(lines):
-       if i % 2 == 0:
-           line = line[:-1]
-           imgs.append(line.split(" "))
+        if line[0] == '#':
+            skip += 1
+            continue
+        if (i + skip) % 2 == 0:
+            line = line[:-1]
+            imgs.append(line.split(" "))
     return imgs
 
 def add_imgs_to_database(database_path: str, image_path: str) -> None:
@@ -77,20 +81,20 @@ def reconstruct_with_known_poses(database_path: str, image_dir: str, output_path
 def reconstruct_unknown_poses(database_path: str, image_dir: str, output_path: str) -> None:
     t = perf_counter()
     #sift_options = pycolmap.SiftExtractionOptions(peak_threshold=0.001)
-    sift_options = pycolmap.SiftExtractionOptions(domain_size_pooling=True, estimate_affine_shape=True, )
-    #sift_options = pycolmap.SiftExtractionOptions()
+    #sift_options = pycolmap.SiftExtractionOptions(domain_size_pooling=True, estimate_affine_shape=True, )
+    sift_options = pycolmap.SiftExtractionOptions()
     pycolmap.extract_features(database_path, image_dir, sift_options=sift_options)
     sift_matching_options = pycolmap.SiftMatchingOptions(guided_matching=True)
     pycolmap.match_exhaustive(database_path, sift_options=sift_matching_options)
     reconstruction = pycolmap.incremental_mapping(database_path, image_dir, output_path)
-    reconstruction[0].export_PLY(f"{output_path}/sparse_reconstruction_dspplus.ply")
+    reconstruction[0].export_PLY(f"{output_path}/sparse_reconstruction.ply")
     print(f"reconstruct_unknown_poses took: {perf_counter()-t}s")
 
 if __name__ == "__main__":
-    database_path = "datasets/ignore_plastic_pear/database.db"
-    image_dir = "datasets/ignore_plastic_pear/images/"
-    output_path = "datasets/ignore_plastic_pear/"
-    known_parameters_path = "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/known_parameters/"
-    #reconstruct_with_known_poses(database_path, image_dir, output_path, known_parameters_path)
-    reconstruct_unknown_poses(database_path, image_dir, output_path)
+    database_path = "datasets/ignore_machine4/database.db"
+    image_dir = "datasets/ignore_machine4/images_cropped/"
+    output_path = "datasets/ignore_machine4/"
+    known_parameters_path = "/workspaces/BEP-3D-scanner/datasets/ignore_machine4/known_parameters/"
+    reconstruct_with_known_poses(database_path, image_dir, output_path, known_parameters_path)
+    #reconstruct_unknown_poses(database_path, image_dir, output_path)
 

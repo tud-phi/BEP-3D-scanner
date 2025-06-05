@@ -7,7 +7,7 @@ import numpy as np
 import os
 
 # Match your Arduino serial port
-PORT = 'COM9'
+PORT = 'COM5'
 BAUD = 9600
 CSV_FILE = 'Arduino/coordinates_example_5.csv'
 radius = 250 #mm
