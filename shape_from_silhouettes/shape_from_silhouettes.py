@@ -336,7 +336,7 @@ def main():
     #ks = np.array([k for _ in paths])
 
     t = time.perf_counter()
-    silhouettes = np.array([remove_background_rembg(dir+"images/"+path) for path in paths])
+    silhouettes = np.array([remove_background_rembg(dir+"images_cropped/"+path) for path in paths])
     #silhouettes = np.array([np.array(Image.open(f"datasets/peer_constant_f/silhouettes/sil_{path}")) / 255 for path in paths])
     print(silhouettes.max())
     print(f"silhouettes: {t-time.perf_counter()}s")
@@ -350,7 +350,7 @@ def main():
     # n_selected_points = selected_points.shape[0]
     # filtered_points = remove_inside_points(selected_points)
 
-    filtered_points = iterative_voxel_carving(3, radius, grid, silhouettes, Ks, quats, score_threshold=0.3)
+    filtered_points = iterative_voxel_carving(1, radius, grid, silhouettes, Ks, quats, score_threshold=0.3)
 
 
     save_points_to_ply(filtered_points, f'{dir}/reconstruction.ply')

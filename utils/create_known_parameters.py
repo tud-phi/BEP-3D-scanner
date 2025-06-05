@@ -166,5 +166,6 @@ if __name__ == "__main__":
     output_path = "datasets/ignore_machine4/known_parameters"
     create_images_txt(200, "datasets/ignore_machine4/images_cropped", output_path)
     parameters = [['SIMPLE_RADIAL', 580, 410, 941.6, 290, 205, -0.6]]
+    #parameters = [['SIMPLE_RADIAL', 580, 410, 867.6724, 290, 205, -0.4138]]
     create_cameras_txt(parameters, output_path)
     create_points3D_txt(output_path)
