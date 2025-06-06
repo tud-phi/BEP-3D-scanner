@@ -38,6 +38,23 @@ def remove_background_white(input_path, output_path=None):
 
     return mask
 
+def remove_background_blue(input_path, output_path=None, threshold=70):
+    # Processing the image
+    input = Image.open(input_path)
+    img = input.convert("RGB")
+    data = np.array(img)
+
+    # Removing the background from the given Image
+    #mask = ((data[:, :, 0] / (data[:, :, 2])) < 0.9) & ((data[:, :, 1] / (data[:, :, 2])) < 0.9 )
+    # Treat blue-dominant pixels as background
+    mask = (data[:, :, 2] > threshold) & (data[:, :, 2] > data[:, :, 0] + 5) & (data[:, :, 2] > data[:, :, 1] + 5)
+    mask = mask == False
+    if output_path is not None:
+        im = Image.fromarray(mask)
+        im.save(output_path)
+
+    return mask
+
     
 if __name__ == '__main__':
     # Store path of the image in the variable input_path
@@ -46,10 +63,10 @@ if __name__ == '__main__':
     # Store path of the output image in the variable output_path
     output_path = 'datasets/ignore_mouse/sil2.jpg'
 
-    dir = "datasets/peer_constant_f/images/"
+    dir = "datasets/machine4/images_cropped/"
     paths = os.listdir(dir)
     for path in paths:
-        output_path = "datasets/peer_constant_f/silhouettes/sil_"+path
-        sil = remove_background_rembg(dir+path, output_path)
+        output_path = "datasets/machine4/silhouettes/sil_"+path
+        sil = remove_background_blue(dir+path, output_path, threshold=50)
     #Saving the image in the given path
     #output.save(output_path)

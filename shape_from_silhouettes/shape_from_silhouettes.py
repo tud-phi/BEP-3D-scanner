@@ -3,7 +3,7 @@ import time
 from typing import Optional
 import numpy as np
 from scipy.spatial.transform import Rotation
-from create_silhouettes import remove_background_white, remove_background_rembg
+from create_silhouettes import remove_background_white, remove_background_rembg, remove_background_blue
 from PIL import Image
 import open3d as o3d
 import matplotlib.pyplot as plt
@@ -314,8 +314,10 @@ def scale_camera_positions(poses: np.ndarray, measured_distance: float, cam_ids:
 
 def main():
     t_tot = time.perf_counter()
-    dir = "datasets/peer_constant_f/"
+    dir = "datasets/machine4/"
     quats, camera_ids, paths = load_poses_from_file(dir+"/known_parameters/images.txt")
+    #quats = quats[:5]
+    #paths = paths[:5]
     #cam_distance = 20
     #quats = scale_camera_positions(quats, cam_distance)
 
@@ -324,7 +326,8 @@ def main():
     #paths = list(itertools.compress(paths, camera_ids==2))
 
     #bounds = ((-7, 7), (-5, 5), (-5, 5))
-    bounds = ((-2, 2), (-1.5, 1.5), (-1.5, 1.5))
+    bounds = ((-70, 70), (-150, 150), (-150, 150))
+    #bounds = ((-2, 2), (-1.5, 1.5), (-1.5, 1.5))
     radius = (bounds[0][1]-bounds[0][0]) / 15
     grid = create_point_grid(radius, bounds)
     print(grid.shape)
@@ -337,8 +340,8 @@ def main():
     #ks = np.array([k for _ in paths])
 
     t = time.perf_counter()
-    #silhouettes = np.array([remove_background_rembg(dir+"images/"+path) for path in paths])
-    silhouettes = np.array([np.array(Image.open(f"datasets/peer_constant_f/silhouettes/sil_{path}")) / 255 for path in paths])
+    #silhouettes = np.array([remove_background_blue(dir+"images/"+path) for path in paths])
+    silhouettes = np.array([np.array(Image.open(f"datasets/machine5/silhouettes/sil_{path}")) / 255 for path in paths])
     print(silhouettes.max())
     print(f"silhouettes: {t-time.perf_counter()}s")
 
@@ -351,7 +354,7 @@ def main():
     # n_selected_points = selected_points.shape[0]
     # filtered_points = remove_inside_points(selected_points)
 
-    filtered_points = iterative_voxel_carving(4, radius, grid, silhouettes, Ks, quats, score_threshold=0.7)
+    filtered_points = iterative_voxel_carving(4, radius, grid, silhouettes, Ks, quats, score_threshold=1)
 
 
     save_points_to_ply(filtered_points, f'{dir}/sfs_reconstruction.ply')
