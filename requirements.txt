@@ -6,3 +6,4 @@ pandas
 open3d
 rembg
 onnxruntime
+point-cloud-utils
