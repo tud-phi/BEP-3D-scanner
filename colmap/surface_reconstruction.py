@@ -21,10 +21,10 @@ def point_cloud2surface(point_cloud, outlier_neighbors=10, outlier_threshold=2, 
 
 if __name__ == "__main__":
 
-    name = 'sparse_reconstruction'
+    name = 'sfs_reconstructionit4(mooi)'
 
-    pcd = o3d.io.read_point_cloud(f"datasets/ignore_machine5/{name}.ply")
+    pcd = o3d.io.read_point_cloud(f"datasets/peer_constant_f/{name}.ply")
 
     mesh = point_cloud2surface(pcd)
 
-    o3d.io.write_triangle_mesh(f"datasets/ignore_machine5/{name}_surface.ply", mesh)
+    o3d.io.write_triangle_mesh(f"datasets/peer_constant_f/{name}_surface.ply", mesh)

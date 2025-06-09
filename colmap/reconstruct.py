@@ -1,9 +1,15 @@
 import json
+import os
 from pathlib import Path
+from matplotlib import pyplot as plt
+import numpy as np
 import pycolmap
 #from colmap.database import COLMAPDatabase
 from database import COLMAPDatabase # if running this file as main
 from time import perf_counter
+from PIL import Image
+from scipy.spatial.transform import Rotation
+from colmap_utils.colmap_utils import read_images_binary
 
 def open_image_file(path: str) -> list[str]:
     with open(path, 'r') as f:
@@ -58,16 +64,133 @@ def create_database(database_path: str) -> None:
     db = COLMAPDatabase.connect(database_path)
     db.create_tables()
 
+    
+def transpose_images(input_dir, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+
+    for filename in os.listdir(input_dir):
+        if filename.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".tiff")):
+            input_path = os.path.join(input_dir, filename)
+            output_path = os.path.join(output_dir, filename)
+
+            with Image.open(input_path) as img:
+                transposed = img.transpose(Image.TRANSPOSE)  # swaps x and y axes
+                transposed.save(output_path)
+
+
+def load_poses_from_file(path: str) -> tuple[np.ndarray, np.ndarray, list]:
+    """reads images.txt and outputs an array with the camera orientations, a list with camera ids and a list with image paths"""
+    poses = []
+    cameras = []
+    paths = []
+    with open(path, 'r') as file:
+        for line in file:
+            parts = line.strip().split()
+            if len(parts) < 9:
+                continue
+            if parts[0] == '#':
+                continue
+
+            qw = float(parts[1])
+            qx = float(parts[2])
+            qy = float(parts[3])
+            qz = float(parts[4])
+            tx = float(parts[5])
+            ty = float(parts[6])
+            tz = float(parts[7])
+            camera = int(parts[8])
+            path = parts[9]
+
+            poses.append([qw, qx, qy, qz, tx, ty, tz])
+            cameras.append(camera)
+            paths.append(path)
+
+    return np.array(poses), np.array(cameras), paths
+
+def quats_to_cartesian(pose_array: np.ndarray) -> np.ndarray:
+    """takes quaternions and translation vectors and returns their corresponding points in cartesian coordinates"""
+    Cs = []
+    for pose in pose_array:
+        qw, qx, qy, qz, tx, ty, tz = pose
+        
+        # Rotation matrix
+        rot = Rotation.from_quat([qw, qx, qy, qz], scalar_first=True)
+        R_mat = rot.as_matrix()
+
+        # Translation vector
+        t = np.array([tx, ty, tz])
+        C = -R_mat.T @ t
+        Cs.append(C)
+
+    return np.array(Cs)
+
+def plot_poses(pose_array, axis_length=0.6, angle=[15, 100, 0]):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    Cs = []
+    
+    for pose in pose_array:
+        qw, qx, qy, qz, tx, ty, tz = pose
+        
+        # Rotation matrix
+        rot = Rotation.from_quat([qw, qx, qy, qz], scalar_first=True)
+        R_mat = rot.as_matrix()
+
+        # Translation vector
+        t = np.array([tx, ty, tz])
+        C = -R_mat.T @ t
+        Cs.append(C)
+
+        # Plot origin
+        ax.scatter(C[0], C[1], C[2], color='black')
+
+        # Draw axes
+        x_axis = C + R_mat.T[:, 0] * axis_length
+        y_axis = C + R_mat.T[:, 1] * axis_length
+        z_axis = C + R_mat.T[:, 2] * axis_length
+
+        ax.plot([C[0], x_axis[0]], [C[1], x_axis[1]], [C[2], x_axis[2]], color='r')  # X: red
+        ax.plot([C[0], y_axis[0]], [C[1], y_axis[1]], [C[2], y_axis[2]], color='g')  # Y: green
+        ax.plot([C[0], z_axis[0]], [C[1], z_axis[1]], [C[2], z_axis[2]], color='b')  # Z: blue
+    #ax.scatter(0, 0, 0, color='red')
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    #ax.set_xlim([np.min(pose_array[:,4]), np.max(pose_array[:,4])])
+    #ax.set_ylim([np.min(pose_array[:,5]), np.max(pose_array[:,5])])
+    #ax.set_zlim([np.min(pose_array[:,6]), np.max(pose_array[:,6])])
+  
+    ax.view_init(elev=angle[0], azim=angle[1], roll=angle[2])
+
+    ax.set_title('Camera Poses')
+    ax.axis('equal')
+    plt.savefig(f"poses_bin.png", dpi=300)
+
+    return np.array(Cs)
+
+def scale_point_cloud(path: str):
+    quats = []
+    for part in os.listdir(path):
+        imgs_part = read_images_binary(path+part+'/images.bin')
+        quats_part = np.array([np.concatenate((value.qvec, value.tvec)) for key, value in imgs_part.items()])
+        quats.append(quats_part)
+    quats = np.concatenate(quats)
+
+    plot_poses(quats, angle=[15, 190, 0])
 
 def reconstruct_with_known_poses(database_path: str, image_dir: str, output_path: str, known_parameters_path: str) -> None:
     """creates a ply file from images and their camera positions."""
+
+    transpose_images(image_dir, output_path+'images_T')
 
     t = perf_counter()
     create_database(database_path)
     add_imgs_to_database(database_path, f"{known_parameters_path}images.txt")
     add_cams_to_database(database_path, f"{known_parameters_path}cameras.txt")
 
-    pycolmap.extract_features(database_path, image_dir)
+    pycolmap.extract_features(database_path, output_path+'images_T')
     pycolmap.match_exhaustive(database_path)
     #pycolmap.verify_matches(database_path, (f"{known_parameters_path}/points3D.txt"))
 
@@ -84,17 +207,26 @@ def reconstruct_unknown_poses(database_path: str, image_dir: str, output_path: s
     #sift_options = pycolmap.SiftExtractionOptions(domain_size_pooling=True, estimate_affine_shape=True, )
     sift_options = pycolmap.SiftExtractionOptions()
     pycolmap.extract_features(database_path, image_dir, sift_options=sift_options)
-    sift_matching_options = pycolmap.SiftMatchingOptions(guided_matching=True)
-    pycolmap.match_exhaustive(database_path, sift_options=sift_matching_options)
-    reconstruction = pycolmap.incremental_mapping(database_path, image_dir, output_path)
+    #sift_matching_options = pycolmap.SiftMatchingOptions(guided_matching=True)
+    #pycolmap.match_exhaustive(database_path, sift_options=sift_matching_options)
+    pycolmap.match_exhaustive(database_path)
+    incremental_pipeline_options = pycolmap.IncrementalPipelineOptions(multiple_models=False)
+    reconstruction = pycolmap.incremental_mapping(database_path, image_dir, f"{output_path}output/", options=incremental_pipeline_options)
     reconstruction[0].export_PLY(f"{output_path}/sparse_reconstruction.ply")
     print(f"reconstruct_unknown_poses took: {perf_counter()-t}s")
 
 if __name__ == "__main__":
-    database_path = "datasets/ignore_machine4/database.db"
-    image_dir = "datasets/ignore_machine4/images_cropped/"
-    output_path = "datasets/ignore_machine4/"
-    known_parameters_path = "/workspaces/BEP-3D-scanner/datasets/ignore_machine4/known_parameters/"
+    werkmap = 'datasets/machine5'
+
+    database_path = f"{werkmap}/database.db"
+    image_dir = f"{werkmap}/images_cropped/"
+    output_path = f"{werkmap}/"
+    known_parameters_path = f"{werkmap}/known_parameters/"
+
     reconstruct_with_known_poses(database_path, image_dir, output_path, known_parameters_path)
     #reconstruct_unknown_poses(database_path, image_dir, output_path)
+
+    #cam_coords_path = f"{werkmap}/output/"
+    #scale_point_cloud(cam_coords_path)
+
 

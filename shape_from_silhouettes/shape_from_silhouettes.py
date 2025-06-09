@@ -1,6 +1,6 @@
 from copy import copy
 import time
-from typing import Optional
+from typing import Literal, Optional
 import numpy as np
 from scipy.spatial.transform import Rotation
 from create_silhouettes import remove_background_white, remove_background_rembg, remove_background_blue
@@ -311,6 +311,53 @@ def scale_camera_positions(poses: np.ndarray, measured_distance: float, cam_ids:
 
     return poses
 
+def reconstruct_sfs(
+        img_path: str, 
+        camera_poses_path: str,
+        camera_params_path: str,
+        output_path: str,
+        precision: int =15,
+        n_iterations: int =3,
+        bounds: tuple[tuple, tuple, tuple] =((-70, 70), (-150, 150), (-150, 150)),
+        background_removal: Literal['blue', 'white', 'rembg'] ='blue'       
+        ):
+    t_tot = time.perf_counter()
+    quats, camera_ids, paths = load_poses_from_file(camera_poses_path)
+    #quats = quats[:5]
+    #paths = paths[:5]
+    #cam_distance = 20
+    #quats = scale_camera_positions(quats, cam_distance)
+
+    # only use images with camera id 2
+    #quats = quats[camera_ids==2]
+    #paths = list(itertools.compress(paths, camera_ids==2))
+
+    radius = (bounds[0][1]-bounds[0][0]) / precision
+    grid = create_point_grid(radius, bounds)
+    print(grid.shape)
+
+    K = load_cam_params_from_file(camera_params_path)
+
+    Ks = np.array([K for _ in paths])
+
+    t = time.perf_counter()
+
+    if background_removal == 'blue':
+        silhouettes = np.array([remove_background_blue(img_path+path, output_path=output_path+'silhouettes/'+'sil_'+path, threshold=70) for path in paths])
+    elif background_removal == 'white':
+        silhouettes = np.array([remove_background_white(img_path+path) for path in paths])
+    elif background_removal == 'rembg':
+        silhouettes = np.array([remove_background_rembg(img_path+path) for path in paths])
+
+
+    #silhouettes = np.array([np.array(Image.open(f"datasets/machine5/silhouettes/sil_{path}")) / 255 for path in paths])
+    print(silhouettes.max())
+    print(f"silhouettes: {t-time.perf_counter()}s")
+
+    filtered_points = iterative_voxel_carving(n_iterations, radius, grid, silhouettes, Ks, quats, score_threshold=1)
+
+    save_points_to_ply(filtered_points, f'{output_path}/sfs_reconstruction_it{n_iterations}_prec{precision}.ply')
+    print(f"shape from silhouettes: {(time.perf_counter() - t_tot):.2f}")
 
 def main():
     t_tot = time.perf_counter()
@@ -361,5 +408,13 @@ def main():
     print(f"shape from silhouettes: {(time.perf_counter() - t_tot):.2f}")
 
 
-main()
-
+if __name__ == "__main__":
+    reconstruct_sfs(
+        'datasets/machine5/images_cropped/',
+        'datasets/machine5/known_parameters/images.txt',
+        'datasets/machine5/known_parameters/cameras.txt',
+        'datasets/machine5/',
+        n_iterations=3,
+        bounds=((-70, 70), (-150, 150), (-150, 150)),
+        background_removal='blue'
+    )
