@@ -4,12 +4,12 @@ from pathlib import Path
 from matplotlib import pyplot as plt
 import numpy as np
 import pycolmap
-#from colmap.database import COLMAPDatabase
-from database import COLMAPDatabase # if running this file as main
+from shape_from_motion.database import COLMAPDatabase
+#from database import COLMAPDatabase # if running this file as main
 from time import perf_counter
 from PIL import Image
 from scipy.spatial.transform import Rotation
-from colmap_utils.colmap_utils import read_images_binary
+from shape_from_motion.sfm_utils.colmap_utils import read_images_binary
 
 def open_image_file(path: str) -> list[str]:
     with open(path, 'r') as f:

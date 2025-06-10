@@ -46,4 +46,4 @@ def crop_images(input_folder, output_folder, crop=[130, 400, 180, 300],  intensi
 # crop_images("input_folder_path", "output_folder_path")
     
 if __name__ == '__main__':
-    crop_images("datasets/ignore_machine5/images", "datasets/ignore_machine5/images_cropped", crop=[130, 350, 180, 350])
+    crop_images("datasets/machine4/images", "datasets/machine4/images_cropped", crop=[130, 320, 180, 250])
