@@ -20,8 +20,8 @@
 #define LED_2 12
 
 // Calibrated for motor + microstepping (e.g., 1.8° motor w/ 1/16 microstepping)
-const float stepsPerDegreex = 2.222;
-const float stepsPerDegreey = 8.5470; //small 13, big 50 
+const float stepsPerDegreey = 2.222;
+const float stepsPerDegreex = 10.101; //small 13, big 50 
 
 AccelStepper stepperX(DRIVER_MODE, X_STEP_PIN, X_DIR_PIN);
 AccelStepper stepperY(DRIVER_MODE, Y_STEP_PIN, Y_DIR_PIN);
@@ -46,7 +46,7 @@ void setup() {
   // Serial.println("HOME_DONE");
   //enableSteppers();
   //moveToAngles(45, 0);
-  stepperY.setCurrentPosition(385*3);  // Set as zero kuuuuttttttttttttttttttttttttttttttttttttttttttttttttttttttt
+  stepperX.setCurrentPosition(385*3);  // Set as zero kuuuuttttttttttttttttttttttttttttttttttttttttttttttttttttttt
   }
 
 void loop() {
@@ -76,6 +76,14 @@ void loop() {
       enableSteppers();
       homeBothAxes();
       Serial.println("HOME_DONE");
+      
+    } else if (input == "HOME_X"){
+      enableSteppers();
+      homeAxis(stepperX, X_LIMIT_PIN);
+      stepperX.setCurrentPosition(1367.8); //135 degrees
+      Serial.println("HOME_X_DONE");
+
+      
 
     } else if (input == "DISABLE") {
       disableSteppers();
@@ -88,6 +96,14 @@ void loop() {
     } else if (input == "LED1OFF"){
       LED1OFF();
       Serial.println("LED_1_OFF_DONE");
+
+    } else if (input.startsWith("LED_1_")) {
+      String valueStr = input.substring(7);  // Get the part after "LED_1_"
+      int brightness = valueStr.toInt();
+      brightness = constrain(brightness, 0, 255);  // Clamp value
+      analogWrite(LED_1, brightness);
+      Serial.println("LED_1_BRIGHTNESS_SET");
+    
 
     } else {
       Serial.println("UNKNOWN_CMD");
@@ -114,16 +130,16 @@ void homeBothAxes() {
 }
 
 void homeAxis(AccelStepper& stepper, int limitPin) {
-  stepper.setMaxSpeed(300);
+  stepper.setMaxSpeed(200);
   stepper.setAcceleration(100);
-  stepper.moveTo(-10000);  // Move until limit triggered
+  stepper.moveTo(10000);  // Move until limit triggered
 
   while (digitalRead(limitPin) == HIGH) {
     stepper.run();
   }
 
   stepper.setCurrentPosition(0);
-  stepper.moveTo(stepsPerDegreex * 5);  // Back off 5 degrees
+  stepper.moveTo(stepsPerDegreex * -5);  // Back off 5 degrees
   while (stepper.isRunning()) {
     stepper.run();
   }
@@ -141,7 +157,7 @@ void disableSteppers() {
   digitalWrite(Y_ENABLE_PIN, HIGH);
 }
 void LED1ON(){
-digitalWrite(LED_1, HIGH);
+analogWrite(LED_1, 150);
 } 
 
 void LED1OFF(){
