@@ -4,7 +4,8 @@
     "dockerfile": "Dockerfile"
   },
   "extensions": [
-    "ms-python.python"
+    "ms-python.python",
+    "GitHub.remotehub"
   ],
   "settings": {
     "python.defaultInterpreterPath": "/usr/local/bin/python"

@@ -84,10 +84,10 @@ def wiggle_values(input_path, output_path, wiggle_value):
     with open(output_path, 'w') as f:
         f.writelines(new_new_lines)
 
-wiggle_values("/workspaces/BEP-3D-scanner/datasets/peer_constant_f/known_parameters/images_gt.txt", "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/known_parameters/images.txt", 0.1)
+#wiggle_values("/workspaces/BEP-3D-scanner/datasets/peer_constant_f/known_parameters/images_gt.txt", "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/known_parameters/images.txt", 0.1)
 #change_filename("/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images.txt", "/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images4.txt")
 #reorder_image_file("/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images2.txt", "/workspaces/BEP-3D-scanner/datasets/ccvpeer_downscaledPY/sparse/images3.txt")
 # Example usage:
-#remove_every_other_line_from_line_6("/workspaces/BEP-3D-scanner/datasets/peer_constant_f/sparsetxt4/images.txt", "/workspaces/BEP-3D-scanner/datasets/peer_constant_f/sparsetxt4/images2.txt")
+remove_every_other_line_from_line_6("datasets/ignore_machine4/colmap_parameters/images.txt", "datasets/ignore_machine4/colmap_parameters/images2.txt")
 
 #print(read_metadata("/workspaces/BEP-3D-scanner/datasets/ccvpeer/images/PXL_20250429_154045599.jpg"))
