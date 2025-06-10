@@ -1,21 +1,22 @@
-from colmap.reconstruct import reconstruct_unknown_poses
-from colmap.surface_reconstruction import point_cloud2surface
+from shape_from_motion.reconstruct import reconstruct_unknown_poses, reconstruct_with_known_poses
+from shape_from_silhouettes.shape_from_silhouettes import reconstruct_sfs
+from utils.surface_reconstruction import point_cloud_file2surface
 import open3d as o3d
 
 
 
 if __name__ == "__main__":
 
-    # dit zijn je paths
-    database_path = "datasets/peer_constant_f/database.db"
-    image_dir = "datasets/peer_constant_f/images/"
-    output_path = "datasets/peer_constant_f/"
+    reconstruct_sfs(
+        'datasets/machine5/images_cropped/',
+        'datasets/machine5/',
+        ['SIMPLE_RADIAL', 580, 410, 867.6724, 290, 205, -0.4138],
+        #['SIMPLE_RADIAL', 580, 410, 941.6, 290, 205, -0.6],
+        n_iterations=4,
+        bounds=((-70, 70), (-150, 150), (-150, 150)),
+        precision=20,
+        background_removal='blue',
+        score_threshold=0.9
+    )
 
-    #hiermee run je colmap, hij creeert een point cloud (.ply) in je output_path
-    reconstruct_unknown_poses(database_path, image_dir, output_path)
-
-    #hiermee verwijder je outliers, en maak je er een surface van
-    name = 'sparse_reconstruction'
-    pcd = o3d.io.read_point_cloud(f"datasets/peer_constant_f/{name}.ply")
-    mesh = point_cloud2surface(pcd)
-    o3d.io.write_triangle_mesh(f"datasets/peer_constant_f/{name}_surface.ply", mesh)
+    point_cloud_file2surface('datasets/machine5/sfs_reconstruction.ply', 'datasets/machine5/sfs_reconstruction_surface.ply')

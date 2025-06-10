@@ -1,8 +1,11 @@
+from copy import copy
+import os
 import time
-from typing import Optional
+from typing import Literal, Optional
 import numpy as np
 from scipy.spatial.transform import Rotation
-from create_silhouettes import remove_background_white, remove_background_rembg
+from shape_from_silhouettes.create_silhouettes import remove_background_white, remove_background_rembg, remove_background_blue
+from shape_from_silhouettes.sfs_utils.create_known_parameters import dir2quats
 from PIL import Image
 import open3d as o3d
 import matplotlib.pyplot as plt
@@ -107,7 +110,6 @@ def create_point_grid(radius: float, bounds: tuple[tuple[float, float], tuple[fl
 
     return xyz
 
-
 def voxel_carve(points: np.ndarray, silhouettes: np.ndarray, Ks: np.ndarray, quats: np.ndarray, ks: Optional[np.ndarray]=None, score_threshold: float=0.7) -> np.ndarray:
     """carves a 3d reconstruction from a group of candidate points using silhouettes
     
@@ -151,58 +153,56 @@ def remove_inside_points(points):
     pcd.points = o3d.utility.Vector3dVector(points)
     pcd_tree = o3d.geometry.KDTreeFlann(pcd)
 
-    k = 27
-    avg_distances = []
+    # 7 to discard points with all 6 direct neighbors
+    # 19 to discard points with all 6 direct neighbors, and all 12 diagonal neighbors
+    k = 7
+    dists = []
     for i in range(len(pcd.points)):
-        [_, _, dist] = pcd_tree.search_knn_vector_3d(pcd.points[i], k)
-        avg_distances.append((np.mean(np.sqrt(dist[1:])) + 1e-8))
-    avg_distances = np.array(avg_distances)
-    #mean_avg_distance = avg_distances.mean()
+        _, _, dist = pcd_tree.search_knn_vector_3d(pcd.points[i], k)
+        dists.append(dist)
+        if i == 0:
+            lowest = copy(dist)
+        else:
+            if np.sum(dist) < np.sum(lowest):
+                lowest = copy(dist)
+    # removes points that do not have the same neighbor distances as the point with the closest neighbors
+    lowest_radius = lowest[1]
+    lowest_int = [round(x/lowest_radius, 7) for x in lowest]
+    dists_int = [[int(x/lowest_radius) for x in dist] for dist in dists]
+    points_to_keep = points[[dist != lowest_int for dist in dists_int]]
 
-    min_avg_distance = avg_distances.min()
-    points_to_keep = points[avg_distances > min_avg_distance * 1.3]
+    #
 
     return points_to_keep
 
-def increase_point_cloud_density(points, radius):
-    """increases a point cloud density by adding 6 points per point: one on each side"""
-    points_xup = points.copy()
-    points_xdown = points.copy()
-    points_yup = points.copy()
-    points_ydown = points.copy()
-    points_zup = points.copy()
-    points_zdown = points.copy()
+def expand_point_cloud_with_grid(points: np.ndarray, spacing: float = 1.0, double_offset: bool=False) -> np.ndarray:
+    """For each point, creates 26 neighboring points in a 3x3x3 grid (excluding the center),
+    avoiding duplicates during generation."""
+    
+    # Define integer offsets (excluding the center point)
 
-    points_xup[:,0] += 0.5 * radius
-    points_yup[:,1] += 0.5 * radius
-    points_zup[:,2] += 0.5 * radius
-    points_xdown[:,0] -= 0.5 * radius
-    points_ydown[:,1] -= 0.5 * radius
-    points_zdown[:,2] -= 0.5 * radius
+    offset_values = [-2, -1, 0, 1, 2] if double_offset else [-1, 0, 1]
 
-    new_points = np.concatenate((points, points_xup, points_yup, points_zup, points_xdown, points_ydown, points_zdown))
-    new_points = np.unique(new_points, axis=0)
+    offsets = [
+        (dx, dy, dz)
+        for dx in offset_values
+        for dy in offset_values
+        for dz in offset_values
+    ]
+    
+    seen = set()
+    result = []
 
-    return new_points
+    for p in points:
+        # Convert original point to tuple after snapping to grid
+        base = tuple(np.round(p / spacing).astype(int))
+        for dx, dy, dz in offsets:
+            neighbor = (base[0] + dx, base[1] + dy, base[2] + dz)
+            if neighbor not in seen:
+                seen.add(neighbor)
+                result.append(np.array(neighbor, dtype=float) * spacing)
 
-def expand_point_cloud_with_grid(points: np.ndarray, spacing: float = 1.0) -> np.ndarray:
-    """For each point, creates 26 neighboring points in a 3x3x3 grid (excluding the center)."""
-    # Create all offsets in a 3x3x3 grid
-    offsets = np.array([
-        [dx, dy, dz]
-        for dx in [-1, 0, 1]
-        for dy in [-1, 0, 1]
-        for dz in [-1, 0, 1]
-        if not (dx == 0 and dy == 0 and dz == 0)
-    ]) * spacing
-
-    # Expand points: (N, 1, 3) + (1, 26, 3) -> (N, 26, 3)
-    neighbor_points = points[:, np.newaxis, :] + offsets[np.newaxis, :, :]
-    # Reshape to (N*26, 3)
-    neighbor_points = neighbor_points.reshape(-1, 3)
-    neighbor_points = np.unique(neighbor_points, axis=0)
-
-    return neighbor_points
+    return np.array(result)
 
 def iterative_voxel_carving(n_iterations: int, radius: float, points: np.ndarray, silhouettes: np.ndarray, Ks: np.ndarray, quats: np.ndarray, score_threshold: float=0.7) -> np.ndarray:
     for i in range(n_iterations):
@@ -210,22 +210,23 @@ def iterative_voxel_carving(n_iterations: int, radius: float, points: np.ndarray
 
         if i != 0:
             t = time.perf_counter()
-            points = expand_point_cloud_with_grid(points, radius * 0.5**(i))
+            double_offset = True if i == 1 else False
+            points = expand_point_cloud_with_grid(points, radius * 0.5**(i), double_offset=double_offset)
             print(f"increase_point_cloud_density: {time.perf_counter()-t}s")
 
         t = time.perf_counter()
         points = voxel_carve(points, silhouettes, Ks, quats, score_threshold=score_threshold)
         print(f"voxel_carve: {time.perf_counter()-t}s")
 
-        t = time.perf_counter()
-        n_points = points.shape[0]
-        points = remove_inside_points(points)
-        print(f"removed {-points.shape[0] + n_points} points")
-        print(f"remove_inside_points: {time.perf_counter()-t}s")
-
         print(f"points in point cloud: {points.shape}")
         save_points_to_ply(points, f'datasets/peer_constant_f/iteration_{i}.ply')
 
+    t = time.perf_counter()
+    n_points = points.shape[0]
+    points = remove_inside_points(points)
+    print(f"removed {-points.shape[0] + n_points} points")
+    print(f"remove_inside_points: {time.perf_counter()-t}s")
+    
     return points
 
 
@@ -312,49 +313,61 @@ def scale_camera_positions(poses: np.ndarray, measured_distance: float, cam_ids:
 
     return poses
 
+def reconstruct_sfs(
+        img_path: str,
+        output_path: str,
+        camera_params: list,
+        precision: int =15,
+        n_iterations: int =3,
+        bounds: tuple[tuple, tuple, tuple] =((-70, 70), (-150, 150), (-150, 150)),
+        background_removal: Literal['blue', 'white', 'rembg'] ='blue',
+        score_threshold=0.8,
+        radius: float =200
+        ):
+    
+    t_tot = time.perf_counter()
 
-def main():
-    dir = "datasets/ignore_machine4/"
-    quats, camera_ids, paths = load_poses_from_file(dir+"/known_parameters/images.txt")
-    #cam_distance = 20
-    #quats = scale_camera_positions(quats, cam_distance)
+    quats = dir2quats(img_path, radius)
+    paths = os.listdir(img_path)
 
-    # only use images with camera id 2
-    #quats = quats[camera_ids==2]
-    #paths = list(itertools.compress(paths, camera_ids==2))
-
-    bounds = ((-7, 7), (-5, 5), (-5, 5))
-    radius = (bounds[0][1]-bounds[0][0]) / 30
+    radius = (bounds[0][1]-bounds[0][0]) / precision
     grid = create_point_grid(radius, bounds)
     print(grid.shape)
 
-    K = load_cam_params_from_file(dir+"/known_parameters/cameras.txt")
-    print(K)
-    
+    f, p_x, p_y = camera_params[3], camera_params[4], camera_params[5]
+
+    K = np.array([[f, 0, p_x],
+                [0, f, p_y],
+                [0,0,1]]).astype(float)
 
     Ks = np.array([K for _ in paths])
-    #ks = np.array([k for _ in paths])
 
     t = time.perf_counter()
-    silhouettes = np.array([remove_background_rembg(dir+"images_cropped/"+path) for path in paths])
-    #silhouettes = np.array([np.array(Image.open(f"datasets/peer_constant_f/silhouettes/sil_{path}")) / 255 for path in paths])
+
+    if background_removal == 'blue':
+        silhouettes = np.array([remove_background_blue(img_path+path, output_path=output_path+'silhouettes/'+'sil_'+path, threshold=70) for path in paths])
+    elif background_removal == 'white':
+        silhouettes = np.array([remove_background_white(img_path+path) for path in paths])
+    elif background_removal == 'rembg':
+        silhouettes = np.array([remove_background_rembg(img_path+path) for path in paths])
+
+
+    #silhouettes = np.array([np.array(Image.open(f"datasets/machine5/silhouettes/sil_{path}")) / 255 for path in paths])
     print(silhouettes.max())
     print(f"silhouettes: {t-time.perf_counter()}s")
 
-    plt.imshow(silhouettes[0], cmap='gray', interpolation='nearest')
-    plt.savefig(f"sil_plt.png", dpi=300)
+    filtered_points = iterative_voxel_carving(n_iterations, radius, grid, silhouettes, Ks, quats, score_threshold=score_threshold)
 
-    # t = time.perf_counter()
-    # selected_points = voxel_carve(grid, silhouettes, Ks, quats, ks=None, score_threshold=0.7)
-    # print(f"voxel_carve: {t-time.perf_counter()}s")
-    # n_selected_points = selected_points.shape[0]
-    # filtered_points = remove_inside_points(selected_points)
-
-    filtered_points = iterative_voxel_carving(1, radius, grid, silhouettes, Ks, quats, score_threshold=0.3)
+    save_points_to_ply(filtered_points, f'{output_path}/sfs_reconstruction.ply')
+    print(f"shape from silhouettes: {(time.perf_counter() - t_tot):.2f}")
 
 
-    save_points_to_ply(filtered_points, f'{dir}/reconstruction.ply')
-
-
-main()
-
+if __name__ == "__main__":
+    reconstruct_sfs(
+        'datasets/machine5/images_cropped/',
+        'datasets/machine5/',
+        ['SIMPLE_RADIAL', 580, 410, 867.6724, 290, 205, -0.4138],
+        n_iterations=3,
+        bounds=((-70, 70), (-150, 150), (-150, 150)),
+        background_removal='blue'
+    )

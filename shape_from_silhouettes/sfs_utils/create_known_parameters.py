@@ -2,74 +2,23 @@ import os
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-# def spherical_to_camera_pose(radius, phi, theta):
-#     """
-#     Convert spherical coordinates to camera pose (quaternion and translation).
-
-#     Parameters:
-#     - radius: distance from origin
-#     - phi: polar angle (in radians, from +Z down)
-#     - theta: azimuthal angle (in radians, from +X in XY-plane)
-
-#     Returns:
-#     - quat: quaternion [x, y, z, w] representing world-to-camera rotation
-#     - t: translation vector, origin of world in camera coordinates
-#     """
-
-    
-#     theta = np.radians(theta)
-#     phi = np.radians(phi)
-
-#     # Convert spherical to Cartesian camera position in world frame
-#     cam_pos_world = radius * np.array([
-#         np.sin(phi) * np.cos(theta),
-#         np.sin(phi) * np.sin(theta),
-#         np.cos(phi)
-#     ])
-
-#     # Camera is looking toward the origin → Z axis is (origin - position)
-#     forward = -cam_pos_world
-#     forward /= np.linalg.norm(forward)
-
-#     # Define a default up vector (Z world)
-#     up_guess = np.array([0, 0, 1])
-#     if np.allclose(forward, up_guess) or np.allclose(forward, -up_guess):
-#         up_guess = np.array([0, 1, 0])  # Avoid collinearity
-
-#     # Right = up × forward
-#     right = np.cross(up_guess, forward)
-#     right /= np.linalg.norm(right)
-
-#     # True up = forward × right
-#     up = np.cross(forward, right)
-
-#     # Rotation matrix: columns = camera axes in world frame (R_wc)
-#     R_wc = np.column_stack((right, up, forward))
-
-#     # Invert rotation: world → camera
-#     R_cw = R_wc.T
-
-#     # Quaternion from world to camera frame
-#     rot = R.from_matrix(R_cw)
-#     quat = rot.as_quat()  # [x, y, z, w]
-
-#     # Translation: origin of world in camera coordinates = -R_cw @ cam_pos_world
-#     t = -R_cw @ cam_pos_world
-
-#     return np.concatenate((quat, t))
-
-def spherical_to_camera_pose(radius, phi, theta):
+def spherical_to_camera_pose(radius: float, phi: float, theta: float):
     """
     Convert spherical coordinates to camera pose (quaternion and translation).
 
-    Parameters:
-    - radius: distance from origin
-    - phi: polar angle (in radians, from +Z down)
-    - theta: azimuthal angle (in radians, from +X in XY-plane)
+    Parameters
+    ----------
+    radius: float
+        distance from origin
+    phi: float
+        polar angle (in radians, from +Z down)
+    theta: float
+        azimuthal angle (in radians, from +X in XY-plane)
 
-    Returns:
-    - quat: quaternion [x, y, z, w] representing world-to-camera rotation
-    - t: translation vector, origin of world in camera coordinates
+    Returns
+    -------
+    quats: np.ndarray
+        array with quaternions and translation vector in format [QW, QX, QY, QZ, TX, TY, TZ]
     """
 
     
@@ -83,17 +32,6 @@ def spherical_to_camera_pose(radius, phi, theta):
         np.cos(phi),
     ])
 
-
-    # Forward vector (camera looks toward origin → optical axis = -Z)
-    # forward = -C / np.linalg.norm(C)  # from camera to origin
-    # down = np.array([0, 0, -1])
-    # proj_of_down_on_n = (np.dot(down, forward)) * forward
-    # down_orthogonal = down - proj_of_down_on_n
-    # down_orthogonal = down_orthogonal / np.linalg.norm(down_orthogonal)
-    # right = -np.cross(forward, down_orthogonal)
-
-    # R = np.stack([right, down_orthogonal, forward], axis=1)
-
     forward = -C / np.linalg.norm(C)  # from camera to origin
     down = np.array([0, 0, -1])
     proj_of_down_on_n = (np.dot(down, forward)) * forward
@@ -103,10 +41,8 @@ def spherical_to_camera_pose(radius, phi, theta):
 
     R = np.stack([down_orthogonal, right, forward], axis=1)
    
-    # Convert to quaternion (scipy uses active rotation convention)
     quat = Rotation.from_matrix(R.T).as_quat(scalar_first=True)  # Transpose for world-to-camera (passive)
 
-    # Translation: origin of world in camera coordinates = -R.T * C
     t = -R.T @ C
 
     return np.concatenate((quat, t))

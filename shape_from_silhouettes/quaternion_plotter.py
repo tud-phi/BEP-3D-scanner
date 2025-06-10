@@ -18,26 +18,6 @@ def quat2euler(quaterions):
     qw, qx, qy, qz, tx, ty, tz = quaterions[0], quaterions[1], quaterions[2], quaterions[3], quaterions[4], quaterions[5], quaterions[6]
     return Rotation.from_quat([qx, qy, qz, qw], scalar_first=False).as_euler("xyz", degrees=True)
 
-def load_poses_from_file(path: str) -> np.ndarray:
-    poses = []
-    with open(path, 'r') as file:
-        for line in file:
-            parts = line.strip().split()
-            if len(parts) < 9:
-                continue  # skip malformed lines
-            if parts[0] == '#':
-                continue
-            # Extract quaternion and translation
-            qw = float(parts[1])
-            qx = float(parts[2])
-            qy = float(parts[3])
-            qz = float(parts[4])
-            tx = float(parts[5])
-            ty = float(parts[6])
-            tz = float(parts[7])
-            poses.append([qw, qx, qy, qz, tx, ty, tz])
-    return np.array(poses)
-
 def plot_poses(pose_array, axis_length=0.6):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
