@@ -49,6 +49,33 @@ def project_world_point_on_cam(P_world: np.ndarray, K: np.ndarray, R: np.ndarray
   
     return v, u
 
+def project_world_points_on_cam(P_world: np.ndarray, K: np.ndarray, R: np.ndarray, t: np.ndarray, k: Optional[float]=None) -> tuple[float, float]:
+    """Projects a point in world coordinates on an image
+    
+    Parameters
+    ----------
+    P_world: np.ndarray
+        array with size (3,) with world coordinates of a point
+    K: np.ndarray
+        instrinsic camera matrix, size (3,3)
+    R: np.ndarray
+        rotation matrix from world to camera frame, size (3,3)
+    t: np.ndarray
+        translation vector, coordinates of the world origin in the camera frame
+
+    Returns
+    -------
+    tuple[float, float]
+        pixel coordinates of P_world
+    """
+    P_cam = (R @ P_world.T).T + t
+    p = (K @ P_cam.T).T
+
+    u = p[:,0] / p[:,2]
+    v = p[:,1] / p[:,2]
+  
+    return v, u
+
 
 def quaternions2matrices(quaterions: list[float]) -> tuple[np.ndarray, np.ndarray]:
     """converts orientation in quaternion and translation notation to extrinsic camera matrices"""
@@ -76,7 +103,6 @@ def check_points_inside_silhouette(points: np.ndarray, silhouette: np.ndarray, K
     pixels = np.zeros(pixels_shape)
 
     for i, point in enumerate(points):
-        center_pixel = (int(silhouette.shape[0]), int(silhouette.shape[1]))
         pixel = project_world_point_on_cam(point, K, R, t, k=k)
         if int(pixel[0]) < 0 or int(pixel[0]) >= silhouette.shape[0]:
             continue
@@ -90,6 +116,38 @@ def check_points_inside_silhouette(points: np.ndarray, silhouette: np.ndarray, K
             pixels[int(pixel[0]), int(pixel[1])] = np.array([255, 255, 255])
     return inside_points, pixels
 
+def check_points_inside_silhouette_fast(points: np.ndarray, silhouette: np.ndarray, K: np.ndarray, R: np.ndarray, t: np.ndarray, k: Optional[float] = None) -> tuple[np.ndarray, np.ndarray]:
+    """Vectorized version: checks if 3D points fall inside a binary silhouette (1=inside)"""
+    h, w = silhouette.shape
+    N = points.shape[0]
+    
+    # Project all points at once: shape (N, 3) -> (N, 2)
+    pixels = project_world_points_on_cam(points, K, R, t)  # returns (N, 2)
+
+    # Round and cast to int for indexing
+    pixels_int = np.round(pixels).astype(int)
+    y, x = pixels_int[0], pixels_int[1]
+
+    # Create mask for points inside image bounds
+    in_bounds = (x >= 0) & (x < w) & (y >= 0) & (y < h)
+
+    # Initialize result arrays
+    inside_points = np.zeros(N, dtype=np.uint8)
+    image_pixels = np.zeros((h, w, 3), dtype=np.uint8)
+
+    # Filter valid indices
+    x_valid, y_valid = x[in_bounds], y[in_bounds]
+    idx_valid = np.where(in_bounds)[0]
+
+    # Silhouette check
+    silhouette_values = silhouette[y_valid, x_valid]  # silhouette[y, x]
+    inside_points[idx_valid] = silhouette_values
+
+    # Visualization
+    image_pixels[y_valid[silhouette_values == 1], x_valid[silhouette_values == 1]] = [255, 255, 255]
+    image_pixels[y_valid[silhouette_values == 0], x_valid[silhouette_values == 0]] = [255, 0, 0]
+
+    return inside_points, image_pixels
 
 def create_point_grid(radius: float, bounds: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]) -> np.ndarray:
     """Creates a grid of 3D points with equal spacing based on the given radius."""
@@ -140,7 +198,7 @@ def voxel_carve(points: np.ndarray, silhouettes: np.ndarray, Ks: np.ndarray, qua
             k = ks[i]
         else:
             k=None
-        inside, _ = check_points_inside_silhouette(points, silhouette, Ks[i], R, t, k=k)
+        inside, _ = check_points_inside_silhouette_fast(points, silhouette, Ks[i], R, t, k=k)
         point_scores += inside
         print(f"processed silhouette {i}: {(time.perf_counter()-t1):.2f}s")
 
@@ -332,6 +390,7 @@ def reconstruct_sfs(
 
     radius = (bounds[0][1]-bounds[0][0]) / precision
     grid = create_point_grid(radius, bounds)
+    save_points_to_ply(grid, f'datasets/peer_constant_f/grid.ply')
     print(grid.shape)
 
     f, p_x, p_y = camera_params[3], camera_params[4], camera_params[5]
@@ -345,20 +404,21 @@ def reconstruct_sfs(
     t = time.perf_counter()
 
     if background_removal == 'blue':
-        silhouettes = np.array([remove_background_blue(img_path+path, output_path=output_path+'silhouettes/'+'sil_'+path, threshold=70) for path in paths])
+        silhouettes = np.array([remove_background_blue(img_path+path, output_path=output_path+'silhouettes/'+'sil_'+path, threshold=10) for path in paths])
+        #silhouettes = np.array([remove_background_blue(img_path+path, threshold=70) for path in paths])
     elif background_removal == 'white':
         silhouettes = np.array([remove_background_white(img_path+path) for path in paths])
     elif background_removal == 'rembg':
-        silhouettes = np.array([remove_background_rembg(img_path+path) for path in paths])
+        silhouettes = np.array([remove_background_rembg(img_path+path, output_path=output_path+'silhouettes/'+'sil_'+path) for path in paths])
 
 
-    #silhouettes = np.array([np.array(Image.open(f"datasets/machine5/silhouettes/sil_{path}")) / 255 for path in paths])
+    #silhouettes = np.array([np.array(Image.open(f"datasets/ignore_fruits/ignore_paprika/silhouettes/sil_{path}")) / 255 for path in paths])
     print(silhouettes.max())
     print(f"silhouettes: {t-time.perf_counter()}s")
 
     filtered_points = iterative_voxel_carving(n_iterations, radius, grid, silhouettes, Ks, quats, score_threshold=score_threshold)
 
-    save_points_to_ply(filtered_points, f'{output_path}/sfs_reconstruction.ply')
+    save_points_to_ply(filtered_points, f'{output_path}/sfs_reconstruction_fast.ply')
     print(f"shape from silhouettes: {(time.perf_counter() - t_tot):.2f}")
 
 

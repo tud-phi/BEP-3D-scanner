@@ -4,7 +4,7 @@ import numpy as np
 def point_cloud2surface(point_cloud, outlier_neighbors=10, outlier_threshold=2, poisson_depth=8):
 
     # remove isolated outliers
-    point_cloud, ind = point_cloud.remove_statistical_outlier(nb_neighbors=outlier_neighbors, std_ratio=outlier_threshold)
+    #point_cloud, ind = point_cloud.remove_statistical_outlier(nb_neighbors=outlier_neighbors, std_ratio=outlier_threshold)
 
     # estimate normals for poisson surface reconstruction
     point_cloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.5, max_nn=20))
@@ -18,6 +18,13 @@ def point_cloud2surface(point_cloud, outlier_neighbors=10, outlier_threshold=2, 
     mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(point_cloud, depth=poisson_depth)
 
     return mesh
+
+def remove_outliers(point_cloud, outlier_neighbors=10, outlier_threshold=2):
+
+    # remove isolated outliers
+    point_cloud, ind = point_cloud.remove_statistical_outlier(nb_neighbors=outlier_neighbors, std_ratio=outlier_threshold)
+
+    return point_cloud
 
 def point_cloud_file2surface(input_path, output_path, outlier_neighbors=10, outlier_threshold=2, poisson_depth=8):
 
@@ -43,10 +50,13 @@ def point_cloud_file2surface(input_path, output_path, outlier_neighbors=10, outl
 
 if __name__ == "__main__":
 
-    name = 'sfs_reconstructionit4(mooi)'
+    name = 'colmap'
 
-    pcd = o3d.io.read_point_cloud(f"datasets/peer_constant_f/{name}.ply")
+    pcd = o3d.io.read_point_cloud(f"datasets/ignore_fruits/ignore_apple/{name}.ply")
 
-    mesh = point_cloud2surface(pcd)
+    pcd = remove_outliers(pcd, outlier_threshold=1)
+    o3d.io.write_point_cloud(f"datasets/ignore_fruits/ignore_apple/{name}_filtered.ply", pcd)
 
-    o3d.io.write_triangle_mesh(f"datasets/peer_constant_f/{name}_surface.ply", mesh)
+
+    #mesh = point_cloud2surface(pcd)
+    #o3d.io.write_triangle_mesh(f"datasets/ignore_n_images/ignore_50/{name}_surface2.ply", mesh)
