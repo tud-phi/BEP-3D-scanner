@@ -90,6 +90,7 @@ n = pcu.estimate_mesh_vertex_normals(v, f)
 # --- Scale the mesh of the stanford bunny --- #
 v_scaled, f_scaled = scale_mesh(v, f, scale_factor=1.1)
 
+# To hear
 # ------------------------------------------------------ #
 
 # --- resample the mesh --- # 
