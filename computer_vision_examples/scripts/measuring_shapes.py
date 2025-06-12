@@ -11,6 +11,7 @@ import math
 # Load the mesh to measure the scan against:
 #   v is a NumPy array of coordinates with shape (V, 3)
 #   f is a NumPy array of face indices with shape (F, 3)
+# v_full, f_full = pcu.load_mesh_vf("../../datasets/Stanford_Bunny/stanford-bunny.obj") # More robust path
 v_full, f_full = pcu.load_mesh_vf("../../datasets/Stanford_Bunny/stanford-bunny.obj") # More robust path
 
 # Downsample the Bunny mesh to make it faster to run
